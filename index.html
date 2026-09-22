@@ -61,6 +61,8 @@
   .score small { display: block; font-size: 0.9rem; font-weight: 600; }
   .name { font-weight: 600; font-size: 1.15rem; line-height: 1.25; }
   .brand { color: #4A5A4F; font-size: 0.95rem; }
+  .source { font-size: 0.8rem; color: #4A5A4F; margin-top: 4px; }
+  .source a { color: inherit; }
   ul { list-style: none; padding: 0; margin: 20px 0; }
   li { padding: 10px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
   .pts { font-weight: 800; white-space: nowrap; }
@@ -123,6 +125,7 @@
       <div>
         <div class="name" id="name"></div>
         <div class="brand" id="brand"></div>
+        <div class="source" id="source"></div>
       </div>
     </div>
     <ul id="reasons"></ul>
@@ -138,6 +141,9 @@
 <script>
 // Bulut okuyucu anahtarı. "helloworld" deneme anahtarıdır, ocr.space'ten kendi ücretsiz anahtarını alıp buraya yaz.
 const OCR_SPACE_KEY = "helloworld";
+
+// Cloudflare Worker adresin (örn. "https://etiket-puani.kullaniciadin.workers.dev"). Boşsa direkt Open Food Facts kullanılır.
+const WORKER_URL = "https://etiket-puani.tdglpi.workers.dev";
 
 // Türkçe karakterleri sadeleştir: "Ayçiçek" -> "aycicek"
 function norm(str) {
@@ -281,6 +287,12 @@ $("f").addEventListener("submit", e => {
   lookup($("code").value);
 });
 
+const SOURCES = {
+  off: "Kaynak: Open Food Facts",
+  foto: "Kaynak: senin çektiğin fotoğraf",
+  web: "Kaynak: internetten bulundu, içindekileri kontrol et"
+};
+
 async function lookup(raw) {
   const code = String(raw).replace(/\D/g, "");
   if (!code) return;
@@ -288,16 +300,37 @@ async function lookup(raw) {
   $("result").style.display = "none";
   $("status").textContent = "Ürün aranıyor…";
 
+  if (WORKER_URL) {
+    const slow = setTimeout(() => {
+      $("status").textContent = "Ürün internette aranıyor, 10-20 saniye sürebilir…";
+    }, 3000);
+    try {
+      const res = await fetch(WORKER_URL + "/lookup?code=" + code);
+      const d = await res.json();
+      clearTimeout(slow);
+      if (!res.ok) throw new Error();
+      const p = { code, product_name: d.name, brands: d.brand, source: d.source, url: d.url };
+      if (d.found) { showResult(p, d.ingredients); return; }
+      askPhoto(d.limit
+        ? "Bugünkü internet araması sınırı doldu. İçindekilerin fotoğrafını çekerek puanlayabilirsin."
+        : "Bu ürünün içindekilerini hiçbir yerde bulamadım. Fotoğrafını çek, bir kere okutman yeterli, sonra hep hatırlanacak.", p);
+      return;
+    } catch {
+      clearTimeout(slow);
+      // sunucuya ulaşılamazsa aşağıdaki doğrudan aramaya geç
+    }
+  }
+
   try {
     const res = await fetch("https://world.openfoodfacts.org/api/v2/product/" + code +
       ".json?fields=product_name,product_name_tr,brands,ingredients_text_tr,ingredients_text,ingredients_text_en,ingredients");
     const data = await res.json();
     if (data.status !== 1) {
-      askPhoto("Bu barkod Open Food Facts'te kayıtlı değil. İçindekilerin fotoğrafını çekerek puanlayabilirsin.", {});
+      askPhoto("Bu barkod Open Food Facts'te kayıtlı değil. İçindekilerin fotoğrafını çekerek puanlayabilirsin.", { code });
       return;
     }
-    const p = data.product;
-    const ing = p.ingredients_text_tr || p.ingredients_text || p.ingredients_text_en ||
+    const p = { ...data.product, code, source: "off" };
+    const ing = p.ingredients_text_tr || p.ingredients_text_en || p.ingredients_text ||
       (p.ingredients || []).map(i => i.text).filter(Boolean).join(", ");
     if (!ing) {
       askPhoto("Bu ürünün içindekiler bilgisi eksik. Paketin arkasındaki içindekiler kısmının fotoğrafını çek.", p);
@@ -317,6 +350,14 @@ function showResult(p, ing) {
     s.style.background = score >= 7 ? "var(--good)" : score >= 4 ? "var(--mid)" : "var(--bad)";
     $("name").textContent = p.product_name_tr || p.product_name || "İsimsiz ürün";
     $("brand").textContent = p.brands || "";
+    const src = $("source");
+    src.textContent = SOURCES[p.source] || "";
+    if (p.source === "web" && p.url && /^https?:\/\//.test(p.url)) {
+      src.append(" · ");
+      const a = document.createElement("a");
+      a.href = p.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = "sayfayı aç";
+      src.append(a);
+    }
     $("reasons").innerHTML = reasons.length
       ? reasons.map(r => `<li><span>${r.label}</span><span class="pts ${r.pts < 0 ? "minus" : "plus"}">${r.pts > 0 ? "+" : ""}${r.pts}</span></li>`).join("")
       : "<li><span>Sorunlu içerik bulunmadı</span><span class='pts plus'>0</span></li>";
@@ -535,7 +576,19 @@ $("ocrScore").addEventListener("click", () => {
   const text = $("ocrText").value.trim();
   if (!text) return;
   $("status").textContent = "";
-  showResult(pending, text);
+  showResult({ ...pending, source: "foto" }, text);
+  if (WORKER_URL && pending.code) {
+    fetch(WORKER_URL + "/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: pending.code,
+        name: pending.product_name_tr || pending.product_name || "",
+        brand: pending.brands || "",
+        ingredients: text
+      })
+    }).catch(() => {});
+  }
 });
 
 if ("serviceWorker" in navigator) {
