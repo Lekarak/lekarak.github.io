@@ -44,8 +44,9 @@
     width: 100%; margin-top: 10px; background: var(--butter); color: var(--ink);
     font-size: 1.1rem; padding: 16px;
   }
-  #reader { margin-top: 12px; border-radius: 12px; overflow: hidden; }
-  #reader:empty { display: none; }
+  #reader { display: none; width: 100%; min-height: 240px; margin-top: 12px; border-radius: 12px; overflow: hidden; background: #000; }
+  #reader.on { display: block; }
+  #reader video { width: 100% !important; display: block; }
   #status { margin: 20px 0 0; min-height: 1.5em; }
   #result { display: none; margin-top: 20px; }
   .tag {
@@ -63,7 +64,16 @@
   .brand { color: #4A5A4F; font-size: 0.95rem; }
   .source { font-size: 0.8rem; color: #4A5A4F; margin-top: 4px; }
   .source a { color: inherit; }
-  ul { list-style: none; padding: 0; margin: 20px 0; }
+  .head { padding: 18px; border-radius: 16px; background: var(--butter); }
+  .scores { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .card { border: 2px solid var(--ink); border-radius: 16px; padding: 14px 10px; text-align: center; }
+  .card .lbl { font-weight: 700; margin-bottom: 8px; }
+  .card .score { font-size: 2.8rem; width: 4.2rem; margin: 0 auto; padding: 10px; }
+  .card .sub { font-size: 0.8rem; color: #4A5A4F; margin-top: 8px; }
+  h3 { margin: 24px 0 0; font-size: 1.05rem; }
+  .grade { color: var(--ink) !important; }
+  .info { color: #6B7A70; font-weight: 600; font-size: 0.85rem; }
+  ul { list-style: none; padding: 0; margin: 8px 0 20px; }
   li { padding: 10px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
   .pts { font-weight: 800; white-space: nowrap; }
   .minus { color: var(--bad); }
@@ -92,7 +102,7 @@
 <body>
 <main>
   <h1>Bu ürün kaç puan?</h1>
-  <p class="intro">Barkod numarasını yaz, içindekiler Ray Peat kriterlerine göre 10 üzerinden puanlansın.</p>
+  <p class="intro">Barkod numarasını yaz, ürün Ray Peat kriterlerine göre 10 üzerinden puanlansın, bilimsel veriler de hesaba katılsın.</p>
 
   <form id="f">
     <input id="code" inputmode="numeric" placeholder="8690000000000" aria-label="Barkod numarası" required>
@@ -120,22 +130,34 @@
   </section>
 
   <section id="result">
-    <div class="tag">
-      <div class="score" id="score"></div>
-      <div>
-        <div class="name" id="name"></div>
-        <div class="brand" id="brand"></div>
-        <div class="source" id="source"></div>
+    <div class="head">
+      <div class="name" id="name"></div>
+      <div class="brand" id="brand"></div>
+      <div class="source" id="source"></div>
+    </div>
+    <div class="scores">
+      <div class="card">
+        <div class="lbl">Puan</div>
+        <div class="score" id="score"></div>
+        <div class="sub">Ray Peat ağırlıklı</div>
+      </div>
+      <div class="card">
+        <div class="lbl">Nutri-Score</div>
+        <div class="score grade" id="nutri"></div>
+        <div class="sub" id="nova"></div>
       </div>
     </div>
+    <h3>Ray Peat'e göre</h3>
     <ul id="reasons"></ul>
+    <h3>Bilimsel verilerden</h3>
+    <ul id="sciReasons"></ul>
     <details>
       <summary>İçindekiler</summary>
       <p id="ingredients"></p>
     </details>
   </section>
 
-  <p class="note">Puanlar Ray Peat kriterlerine göre verilir, tıbbi tavsiye değildir. Ürün bilgileri Open Food Facts'ten gelir.</p>
+  <p class="note">Puan Ray Peat kriterlerine dayanır. Bilimsel verilerden sadece Ray Peat'in yaklaşımıyla çelişmeyen, kanıtı güçlü riskler (trans yağ, işlenmiş et, ultra işlenmiş gıda) puanı düşürür. Nutri-Score, şeker, tuz ve doymuş yağ bilgi olarak gösterilir, puanı etkilemez. Puanlar tıbbi tavsiye değildir. Ürün bilgileri Open Food Facts'ten gelir.</p>
 </main>
 
 <script>
@@ -164,18 +186,22 @@ function lev(a, b) {
   return d[a.length][b.length];
 }
 
-// Kelime birebir yoksa, 1-2 harfi yanlış okunmuş hâlini de kabul et
+// Kelime birebir yoksa, 1-2 harfi yanlış okunmuş hâlini de kabul et (her kelime ayrı kontrol edilir)
 function has(text, words) {
   const tokens = text.split(/[^a-z0-9]+/).filter(Boolean);
+  const tol = len => len >= 9 ? 2 : len >= 5 ? 1 : 0;
   return words.some(w => {
     const kw = norm(w);
     if (text.includes(kw)) return true;
-    if (kw.replace(/ /g, "").length < 5) return false;
-    const n = kw.split(" ").length;
-    const limit = kw.length >= 9 ? 2 : 1;
-    for (let i = 0; i + n <= tokens.length; i++) {
-      const chunk = tokens.slice(i, i + n).join(" ");
-      if (lev(kw, chunk.slice(0, kw.length)) <= limit) return true;
+    const parts = kw.split(" ");
+    if (parts.every(p => tol(p.length) === 0)) return false;
+    for (let i = 0; i + parts.length <= tokens.length; i++) {
+      const ok = parts.every((p, j) => {
+        const tk = tokens[i + j];
+        const cand = j === parts.length - 1 ? tk.slice(0, p.length) : tk;
+        return lev(p, cand) <= tol(p.length);
+      });
+      if (ok) return true;
     }
     return false;
   });
@@ -195,14 +221,23 @@ function scoreProduct(ingredientsRaw) {
 
   if (has(text, ["ayçiçek", "aycicek", "mısır yağı", "mısırözü yağı", "soya yağı", "kanola", "kolza",
                  "pamuk", "aspir", "bitkisel yağ", "sunflower", "corn oil", "soybean oil",
-                 "rapeseed", "canola", "cottonseed", "safflower", "vegetable oil"]))
-    add(-4, "Tohum yağı içeriyor");
+                 "rapeseed", "canola", "cottonseed", "safflower", "vegetable oil",
+                 "tournesol", "colza", "huile vegetale", "sonnenblumen", "rapsol", "pflanzenol"]))
+    add(-5, "Tohum yağı içeriyor");
 
   if (has(noCoconut, ["balık yağı", "keten", "chia", "ceviz", "fish oil", "flax", "linseed", "walnut"]))
-    add(-2, "Omega-3 / PUFA kaynağı içeriyor");
+    add(-3, "Omega-3 / PUFA kaynağı içeriyor");
 
-  if (has(text, ["soya proteini", "soya lesitini", "soya unu", "soy protein", "soy lecithin", "soya fasulyesi"]))
-    add(-1, "Soya içeriği var");
+  if (has(text, ["palm yağı", "palm yagi", "palmiye yağı", "palm oil", "palm fat", "huile de palme", "palmol", "palmfett"]))
+    add(-2, "Palm yağı (orta düzeyde PUFA)");
+
+  if (has(text, ["fındık", "badem", "yer fıstığı", "fıstık", "kaju", "susam", "tahin", "ay çekirdeği",
+                 "hazelnut", "almond", "peanut", "cashew", "sesame", "pistachio",
+                 "noisette", "amande", "arachide", "haselnuss", "mandel", "erdnuss"]))
+    add(-2, "Kuruyemiş / tohum içeriyor (PUFA)");
+
+  if (has(text, ["soya", "soja", "soy"]))
+    add(-2, "Soya içeriği var");
 
   const gums = [
     ["karragenan", "e407", "carrageenan"],
@@ -210,17 +245,17 @@ function scoreProduct(ingredientsRaw) {
     ["ksantan", "e415", "xanthan"],
     ["keçiboynuzu", "e410", "locust bean"]
   ].filter(g => has(text, g)).length;
-  if (gums > 0) add(-Math.min(gums, 2), "Kıvam artırıcı / zamk (" + gums + " adet)");
+  if (gums > 0) add(-Math.min(gums, 3), "Kıvam artırıcı / zamk (" + gums + " adet)");
 
   if (has(text, ["aspartam", "sukraloz", "asesülfam", "sakarin", "e950", "e951", "e954", "e955",
                  "sucralose", "acesulfame", "saccharin"]))
-    add(-1, "Yapay tatlandırıcı var");
+    add(-2, "Yapay tatlandırıcı var");
 
   if (has(text, ["demir", "iron", "ferrous", "ferric"]))
-    add(-1, "Demirle zenginleştirilmiş");
+    add(-2, "Demirle zenginleştirilmiş");
 
   if (/(^|\s)un(u)?(\s|$)|nisasta|flour|starch/.test(first))
-    add(-1, "İlk içerik un veya nişasta");
+    add(-2, "İlk içerik un veya nişasta");
 
   if (has(text, ["tereyağ", "hindistan cevizi yağı", "hindistancevizi yağı", "süt yağı", "butter", "coconut oil", "milk fat"]))
     add(1, "Tereyağı / hindistan cevizi / süt yağı");
@@ -230,6 +265,49 @@ function scoreProduct(ingredientsRaw) {
     add(1, "Ana içerik süt, yumurta, jelatin veya meyve");
 
   return { score: Math.max(0, Math.min(10, score)), reasons };
+}
+
+// ---- Bilimsel veriler ----
+// Sadece Ray Peat ile çelişmeyen riskler puanı düşürür, geri kalanı bilgi olarak gösterilir.
+function scienceExtras(p, ingredientsRaw) {
+  const text = norm(ingredientsRaw || "");
+  const n = p.nutriments || {};
+  const num = k => (typeof n[k] === "number" && isFinite(n[k])) ? n[k] : null;
+  const penalties = [], info = [];
+  const grade = /^[a-e]$/i.test(p.nutriscore_grade || "") ? p.nutriscore_grade.toUpperCase() : "";
+  const nova = [1, 2, 3, 4].includes(+p.nova_group) ? +p.nova_group : 0;
+
+  // Puanı düşürenler
+  const markers = [
+    ["emulgator", "emulsifier", "mono ve digliserit", "e471"],
+    ["aroma verici", "yapay aroma", "flavouring", "flavoring", "artificial flavor"],
+    ["glikoz surubu", "fruktoz surubu", "glukoz surubu", "misir surubu", "invert seker", "glucose syrup", "fructose syrup", "corn syrup"],
+    ["maltodekstrin", "maltodextrin", "modifiye nisasta", "modified starch"],
+    ["renklendirici", "colour", "e102", "e110", "e122", "e124", "e129", "e150"]
+  ].filter(g => has(text, g)).length;
+  if (nova === 4) penalties.push({ pts: -1, label: "Ultra işlenmiş gıda (NOVA 4)" });
+  else if (!nova && markers >= 2) penalties.push({ pts: -1, label: "Ultra işlenmiş görünüyor (tahmini)" });
+
+  if (has(text, ["hidrojene", "hydrogenated", "margarin", "margarine"]))
+    penalties.push({ pts: -3, label: "Hidrojene yağ / trans yağ riski" });
+
+  if (has(text, ["nitrit", "nitrite", "e250", "e251", "e252", "sucuk", "sosis", "pastirma"]))
+    penalties.push({ pts: -2, label: "İşlenmiş et / nitrit (kanser riskiyle ilişkili)" });
+
+  // Sadece bilgi
+  const level = (v, low, high) => v === null ? null : v > high ? "yüksek" : v > low ? "orta" : "düşük";
+  const rows = [
+    ["Şeker", num("sugars_100g"), 5, 22.5],
+    ["Doymuş yağ", num("saturated-fat_100g"), 1.5, 5],
+    ["Tuz", num("salt_100g"), 0.3, 1.5]
+  ];
+  for (const [name, v, low, high] of rows) {
+    const l = level(v, low, high);
+    if (l) info.push({ badge: l, label: name + " " + v + " g/100 g" });
+  }
+  if (!grade && !rows.some(r => r[1] !== null)) info.push({ badge: "?", label: "Besin değerleri bilinmiyor" });
+
+  return { penalties, info, grade, nova };
 }
 
 const $ = id => document.getElementById(id);
@@ -243,6 +321,7 @@ async function stopScanner() {
     scanner = null;
   }
   $("scan").textContent = "📷 Kamerayla okut";
+  $("reader").classList.remove("on");
 }
 
 $("scan").addEventListener("click", async () => {
@@ -254,7 +333,8 @@ $("scan").addEventListener("click", async () => {
   closeCam();
   $("ocr").style.display = "none";
   $("result").style.display = "none";
-  $("status").textContent = "Barkodu çerçevenin içine tut.";
+  $("status").textContent = "Kamera açılıyor…";
+  $("reader").classList.add("on"); // kamera alanı, tarayıcı başlamadan önce görünür olmalı
   let done = false;
   const F = Html5QrcodeSupportedFormats;
   scanner = new Html5Qrcode("reader", {
@@ -275,6 +355,7 @@ $("scan").addEventListener("click", async () => {
         lookup(text);
       }
     );
+    if (!done) $("status").textContent = "Barkodu sarı çerçevenin içine tut.";
   } catch {
     await stopScanner();
     $("status").textContent = "Kameraya erişilemedi. Tarayıcı kamera izni istediğinde İzin ver'e bas.";
@@ -309,7 +390,8 @@ async function lookup(raw) {
       const d = await res.json();
       clearTimeout(slow);
       if (!res.ok) throw new Error();
-      const p = { code, product_name: d.name, brands: d.brand, source: d.source, url: d.url };
+      const p = { code, product_name: d.name, brands: d.brand, source: d.source, url: d.url,
+                  nutriscore_grade: d.nutriscore, nova_group: d.nova, nutriments: d.nutriments };
       if (d.found) { showResult(p, d.ingredients); return; }
       askPhoto(d.limit
         ? "Bugünkü internet araması sınırı doldu. İçindekilerin fotoğrafını çekerek puanlayabilirsin."
@@ -323,7 +405,7 @@ async function lookup(raw) {
 
   try {
     const res = await fetch("https://world.openfoodfacts.org/api/v2/product/" + code +
-      ".json?fields=product_name,product_name_tr,brands,ingredients_text_tr,ingredients_text,ingredients_text_en,ingredients");
+      ".json?fields=product_name,product_name_tr,brands,ingredients_text_tr,ingredients_text,ingredients_text_en,ingredients,nutriscore_grade,nova_group,nutriments");
     const data = await res.json();
     if (data.status !== 1) {
       askPhoto("Bu barkod Open Food Facts'te kayıtlı değil. İçindekilerin fotoğrafını çekerek puanlayabilirsin.", { code });
@@ -345,9 +427,21 @@ async function lookup(raw) {
 function showResult(p, ing) {
     $("ocr").style.display = "none";
     const { score, reasons } = scoreProduct(ing);
-    const s = $("score");
-    s.innerHTML = score + "<small>/10</small>";
-    s.style.background = score >= 7 ? "var(--good)" : score >= 4 ? "var(--mid)" : "var(--bad)";
+    const sci = scienceExtras(p, ing);
+    const total = Math.max(0, Math.min(10, score + sci.penalties.reduce((t, r) => t + r.pts, 0)));
+    const el = $("score");
+    el.innerHTML = total + "<small>/10</small>";
+    el.style.background = total >= 7 ? "var(--good)" : total >= 4 ? "var(--mid)" : "var(--bad)";
+    const nutriColors = { A: "#038141", B: "#85BB2F", C: "#FECB02", D: "#EE8100", E: "#E63E11" };
+    const nu = $("nutri");
+    nu.textContent = sci.grade || "?";
+    nu.style.background = nutriColors[sci.grade] || "var(--line)";
+    $("nova").textContent = sci.nova ? "NOVA " + sci.nova + (sci.nova === 4 ? " · ultra işlenmiş" : "") : "İşlenme derecesi bilinmiyor";
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const sciRows = sci.penalties.map(r => `<li><span>${esc(r.label)}</span><span class="pts minus">${r.pts}</span></li>`)
+      .concat(sci.info.map(r => `<li><span>${esc(r.label)}</span><span class="info">${esc(r.badge)}</span></li>`));
+    $("sciReasons").innerHTML = sciRows.length ? sciRows.join("")
+      : "<li><span>Ek bir risk bulunmadı</span><span class='pts plus'>0</span></li>";
     $("name").textContent = p.product_name_tr || p.product_name || "İsimsiz ürün";
     $("brand").textContent = p.brands || "";
     const src = $("source");
@@ -585,15 +679,20 @@ $("ocrScore").addEventListener("click", () => {
         code: pending.code,
         name: pending.product_name_tr || pending.product_name || "",
         brand: pending.brands || "",
-        ingredients: text
+        ingredients: text,
+        nutriscore: pending.nutriscore_grade || "",
+        nova: pending.nova_group || 0,
+        nutriments: pending.nutriments || null
       })
     }).catch(() => {});
   }
 });
 
+// Eski sürümlerin önbellekte kalmaması için service worker ve önbelleği temizle
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
+  navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
 }
+if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
 </script>
 </body>
 </html>
