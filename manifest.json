@@ -1,0 +1,16 @@
+{
+  "name": "Etiket Puanı",
+  "short_name": "Etiket Puanı",
+  "description": "Market ürünlerini barkoddan okuyup Ray Peat kriterlerine göre 10 üzerinden puanlar.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1E2B22",
+  "lang": "tr",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
