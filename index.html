@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Etiket Puanı</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -35,6 +36,12 @@
     border-radius: 10px; background: var(--ink); color: var(--butter); cursor: pointer;
   }
   input:focus-visible, button:focus-visible { outline: 3px solid var(--butter); outline-offset: 2px; }
+  #scan {
+    width: 100%; margin-top: 10px; background: var(--butter); color: var(--ink);
+    font-size: 1.1rem; padding: 16px;
+  }
+  #reader { margin-top: 12px; border-radius: 12px; overflow: hidden; }
+  #reader:empty { display: none; }
   #status { margin: 20px 0 0; min-height: 1.5em; }
   #result { display: none; margin-top: 20px; }
   .tag {
@@ -69,6 +76,8 @@
     <input id="code" inputmode="numeric" placeholder="8690000000000" aria-label="Barkod numarası" required>
     <button type="submit">Puanla</button>
   </form>
+  <button id="scan" type="button">📷 Kamerayla okut</button>
+  <div id="reader"></div>
 
   <p id="status" role="status"></p>
 
@@ -143,9 +152,55 @@ function scoreProduct(ingredientsRaw) {
 
 const $ = id => document.getElementById(id);
 
-$("f").addEventListener("submit", async e => {
+let scanner = null;
+
+async function stopScanner() {
+  if (scanner) {
+    try { await scanner.stop(); } catch {}
+    scanner.clear();
+    scanner = null;
+  }
+  $("scan").textContent = "📷 Kamerayla okut";
+}
+
+$("scan").addEventListener("click", async () => {
+  if (scanner) { stopScanner(); return; }
+  if (typeof Html5Qrcode === "undefined") {
+    $("status").textContent = "Kamera aracı yüklenemedi. Sayfayı yenileyip tekrar dene.";
+    return;
+  }
+  $("result").style.display = "none";
+  $("status").textContent = "Barkodu çerçevenin içine tut.";
+  const F = Html5QrcodeSupportedFormats;
+  scanner = new Html5Qrcode("reader", {
+    formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E],
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+  });
+  $("scan").textContent = "Kamerayı kapat";
+  try {
+    await scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 260, height: 120 } },
+      async text => {
+        await stopScanner();
+        $("code").value = text;
+        lookup(text);
+      }
+    );
+  } catch {
+    await stopScanner();
+    $("status").textContent = "Kameraya erişilemedi. Tarayıcı kamera izni istediğinde İzin ver'e bas.";
+  }
+});
+
+$("f").addEventListener("submit", e => {
   e.preventDefault();
-  const code = $("code").value.replace(/\D/g, "");
+  stopScanner();
+  lookup($("code").value);
+});
+
+async function lookup(raw) {
+  const code = String(raw).replace(/\D/g, "");
   if (!code) return;
   $("result").style.display = "none";
   $("status").textContent = "Ürün aranıyor…";
@@ -179,7 +234,7 @@ $("f").addEventListener("submit", async e => {
   } catch {
     $("status").textContent = "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.";
   }
-});
+}
 </script>
 </body>
 </html>
