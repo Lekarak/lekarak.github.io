@@ -136,10 +136,50 @@
 </main>
 
 <script>
-const has = (text, words) => words.some(w => text.includes(w));
+// Bulut okuyucu anahtarı. "helloworld" deneme anahtarıdır, ocr.space'ten kendi ücretsiz anahtarını alıp buraya yaz.
+const OCR_SPACE_KEY = "helloworld";
+
+// Türkçe karakterleri sadeleştir: "Ayçiçek" -> "aycicek"
+function norm(str) {
+  return str.toLocaleLowerCase("tr")
+    .replace(/ı/g, "i").replace(/ç/g, "c").replace(/ğ/g, "g")
+    .replace(/ö/g, "o").replace(/ş/g, "s").replace(/ü/g, "u")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function lev(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1,
+        d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+
+// Kelime birebir yoksa, 1-2 harfi yanlış okunmuş hâlini de kabul et
+function has(text, words) {
+  const tokens = text.split(/[^a-z0-9]+/).filter(Boolean);
+  return words.some(w => {
+    const kw = norm(w);
+    if (text.includes(kw)) return true;
+    if (kw.replace(/ /g, "").length < 5) return false;
+    const n = kw.split(" ").length;
+    const limit = kw.length >= 9 ? 2 : 1;
+    for (let i = 0; i + n <= tokens.length; i++) {
+      const chunk = tokens.slice(i, i + n).join(" ");
+      if (lev(kw, chunk.slice(0, kw.length)) <= limit) return true;
+    }
+    return false;
+  });
+}
 
 function scoreProduct(ingredientsRaw) {
-  let text = ingredientsRaw.toLocaleLowerCase("tr");
+  let text = norm(ingredientsRaw);
+  // Baştaki "İçindekiler:" başlığını ve öncesini at
+  const lbl = text.search(/icindekiler|ingredients/);
+  if (lbl >= 0 && lbl < 80) text = text.slice(lbl).replace(/^(icindekiler|ingredients)\s*[:.\-]?\s*/, "");
   const first = text.split(/[,;(]/)[0].trim();
   // "hindistan cevizi" ceviz sayılmasın
   const noCoconut = text.replace(/hindistan ?cevizi/g, "").replace(/coconut/g, "");
@@ -173,7 +213,7 @@ function scoreProduct(ingredientsRaw) {
   if (has(text, ["demir", "iron", "ferrous", "ferric"]))
     add(-1, "Demirle zenginleştirilmiş");
 
-  if (/(^|\s)un(u)?(\s|$)|nişasta|flour|starch/.test(first))
+  if (/(^|\s)un(u)?(\s|$)|nisasta|flour|starch/.test(first))
     add(-1, "İlk içerik un veya nişasta");
 
   if (has(text, ["tereyağ", "hindistan cevizi yağı", "hindistancevizi yağı", "süt yağı", "butter", "coconut oil", "milk fat"]))
@@ -306,6 +346,48 @@ function loadTesseract() {
   });
 }
 
+// Fotoğrafı sadece sarı çerçevenin içi kalacak şekilde kırp
+async function toCanvas(src, crop) {
+  const img = src instanceof Blob ? await createImageBitmap(src) : src;
+  const W = img.width, H = img.height;
+  let sx = 0, sy = 0, sw = W, sh = H;
+  if (crop) {
+    // Fotoğraf ile önizlemenin en-boy oranı farklıysa önce önizlemeye eşitle
+    const va = crop.aspect, pa = W / H;
+    if (pa > va) { sw = H * va; sx = (W - sw) / 2; }
+    else { sh = W / va; sy = (H - sh) / 2; }
+    sx += sw * 0.08; sy += sh * 0.12; sw *= 0.84; sh *= 0.76;
+  }
+  const c = document.createElement("canvas");
+  c.width = Math.round(sw); c.height = Math.round(sh);
+  c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c;
+}
+
+// Bulut okuyucu (OCR.space). 1 MB sınırı için görüntüyü küçültüp sıkıştırır.
+async function cloudOcr(canvas) {
+  const max = 2400, k = Math.min(1, max / Math.max(canvas.width, canvas.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(canvas.width * k); c.height = Math.round(canvas.height * k);
+  c.getContext("2d").drawImage(canvas, 0, 0, c.width, c.height);
+  let q = 0.9, url = c.toDataURL("image/jpeg", q);
+  while (url.length * 0.75 > 950000 && q > 0.3) { q -= 0.15; url = c.toDataURL("image/jpeg", q); }
+  const fd = new FormData();
+  fd.append("apikey", OCR_SPACE_KEY);
+  fd.append("base64Image", url);
+  fd.append("language", "auto");
+  fd.append("OCREngine", "2");
+  fd.append("scale", "true");
+  fd.append("detectOrientation", "true");
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 30000);
+  const res = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: fd, signal: ctrl.signal });
+  clearTimeout(t);
+  const json = await res.json();
+  if (json.IsErroredOnProcessing || !json.ParsedResults) throw new Error("ocr");
+  return json.ParsedResults.map(r => r.ParsedText).join("\n");
+}
+
 // Küçük yazılar için: büyüt, gri yap, kontrastı artır
 async function prepare(src) {
   const img = src instanceof Blob ? await createImageBitmap(src) : src;
@@ -335,19 +417,28 @@ async function prepare(src) {
   return c;
 }
 
-async function runOcr(src) {
+async function runOcr(src, crop) {
   $("photoBtn").disabled = true;
-  $("status").textContent = "Yazı okunuyor… İlk seferde biraz uzun sürebilir.";
+  $("status").textContent = "Yazı okunuyor…";
   try {
-    await loadTesseract();
-    const image = await prepare(src);
-    const { data } = await Tesseract.recognize(image, "tur", {
-      logger: m => {
-        if (m.status === "recognizing text")
-          $("status").textContent = "Yazı okunuyor… %" + Math.round(m.progress * 100);
-      }
-    });
-    const text = data.text.replace(/\s+/g, " ").trim();
+    const canvas = await toCanvas(src, crop);
+    let raw = "";
+    if (OCR_SPACE_KEY && navigator.onLine) {
+      try { raw = await cloudOcr(canvas); } catch { raw = ""; }
+    }
+    if (raw.trim().length < 5) {
+      $("status").textContent = "Yazı okunuyor (yedek okuyucu)… İlk seferde biraz sürebilir.";
+      await loadTesseract();
+      const image = await prepare(canvas);
+      const { data } = await Tesseract.recognize(image, "tur", {
+        logger: m => {
+          if (m.status === "recognizing text")
+            $("status").textContent = "Yazı okunuyor (yedek okuyucu)… %" + Math.round(m.progress * 100);
+        }
+      });
+      raw = data.text;
+    }
+    const text = raw.replace(/-\s*\n\s*/g, "").replace(/\s+/g, " ").trim();
     if (text.length < 5) {
       $("status").textContent = "Yazı okunamadı. Yakınlaştırıp içindekiler kısmını çerçeveye sığdır ve tekrar çek.";
       return;
@@ -428,9 +519,10 @@ $("shoot").addEventListener("click", async () => {
     c.getContext("2d").drawImage(v, 0, 0);
     src = c;
   }
+  const crop = { aspect: v.videoWidth / v.videoHeight };
   if (navigator.vibrate) navigator.vibrate(60);
   closeCam();
-  runOcr(src);
+  runOcr(src, crop);
 });
 
 $("photo").addEventListener("change", e => {
