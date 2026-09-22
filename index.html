@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -68,6 +69,14 @@
   .plus { color: var(--good); }
   details { margin-top: 8px; color: #4A5A4F; font-size: 0.95rem; }
   summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  #ocr { display: none; margin-top: 16px; padding: 18px; border: 2px dashed var(--ink); border-radius: 16px; }
+  #ocr p { margin: 0 0 12px; }
+  #photoBtn { width: 100%; background: var(--butter); color: var(--ink); }
+  #ocrText {
+    display: none; width: 100%; margin-top: 12px; font: inherit; font-size: 0.95rem;
+    padding: 12px; border: 2px solid var(--ink); border-radius: 10px; resize: vertical;
+  }
+  #ocrScore { display: none; width: 100%; margin-top: 8px; }
   .note { margin-top: 28px; font-size: 0.85rem; color: #6B7A70; }
 </style>
 </head>
@@ -84,6 +93,14 @@
   <div id="reader"></div>
 
   <p id="status" role="status"></p>
+
+  <section id="ocr">
+    <p>İçindekiler kısmının fotoğrafını çek, yazıyı okuyup puanlayayım.</p>
+    <input type="file" id="photo" accept="image/*" capture="environment" hidden>
+    <button id="photoBtn" type="button">📸 İçindekilerin fotoğrafını çek</button>
+    <textarea id="ocrText" rows="6" aria-label="Okunan içindekiler"></textarea>
+    <button id="ocrScore" type="button">Bu metni puanla</button>
+  </section>
 
   <section id="result">
     <div class="tag">
@@ -211,18 +228,27 @@ async function lookup(raw) {
 
   try {
     const res = await fetch("https://world.openfoodfacts.org/api/v2/product/" + code +
-      ".json?fields=product_name,product_name_tr,brands,ingredients_text_tr,ingredients_text");
+      ".json?fields=product_name,product_name_tr,brands,ingredients_text_tr,ingredients_text,ingredients_text_en,ingredients");
     const data = await res.json();
     if (data.status !== 1) {
-      $("status").textContent = "Bu barkod Open Food Facts'te kayıtlı değil. Numarayı kontrol et ya da başka bir ürün dene.";
+      askPhoto("Bu barkod Open Food Facts'te kayıtlı değil. İçindekilerin fotoğrafını çekerek puanlayabilirsin.", {});
       return;
     }
     const p = data.product;
-    const ing = p.ingredients_text_tr || p.ingredients_text || "";
+    const ing = p.ingredients_text_tr || p.ingredients_text || p.ingredients_text_en ||
+      (p.ingredients || []).map(i => i.text).filter(Boolean).join(", ");
     if (!ing) {
-      $("status").textContent = "Ürün bulundu ama içindekiler bilgisi eksik, bu yüzden puanlanamıyor.";
+      askPhoto("Bu ürünün içindekiler bilgisi eksik. Paketin arkasındaki içindekiler kısmının fotoğrafını çek.", p);
       return;
     }
+    showResult(p, ing);
+  } catch {
+    $("status").textContent = "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.";
+  }
+}
+
+function showResult(p, ing) {
+    $("ocr").style.display = "none";
     const { score, reasons } = scoreProduct(ing);
     const s = $("score");
     s.innerHTML = score + "<small>/10</small>";
@@ -235,10 +261,67 @@ async function lookup(raw) {
     $("ingredients").textContent = ing;
     $("status").textContent = "";
     $("result").style.display = "block";
-  } catch {
-    $("status").textContent = "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.";
-  }
 }
+
+// ---- Fotoğraftan okuma ----
+let pending = {};
+
+function askPhoto(msg, product) {
+  pending = product || {};
+  $("status").textContent = msg;
+  $("ocrText").style.display = "none";
+  $("ocrScore").style.display = "none";
+  $("ocr").style.display = "block";
+}
+
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve();
+  return new Promise((ok, fail) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js";
+    sc.onload = ok; sc.onerror = fail;
+    document.head.appendChild(sc);
+  });
+}
+
+$("photoBtn").addEventListener("click", () => $("photo").click());
+
+$("photo").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  $("photoBtn").disabled = true;
+  $("status").textContent = "Yazı okunuyor… İlk seferde biraz uzun sürebilir.";
+  try {
+    await loadTesseract();
+    const { data } = await Tesseract.recognize(file, "tur", {
+      logger: m => {
+        if (m.status === "recognizing text")
+          $("status").textContent = "Yazı okunuyor… %" + Math.round(m.progress * 100);
+      }
+    });
+    const text = data.text.replace(/\s+/g, " ").trim();
+    if (text.length < 5) {
+      $("status").textContent = "Yazı okunamadı. İçindekiler kısmına daha yakından, düz ve iyi ışıkta çekip tekrar dene.";
+      return;
+    }
+    $("ocrText").value = text;
+    $("ocrText").style.display = "block";
+    $("ocrScore").style.display = "block";
+    $("status").textContent = "Yanlış okunan kelime varsa düzelt, sonra puanla.";
+  } catch {
+    $("status").textContent = "Okuma aracı yüklenemedi. İnternetini kontrol edip tekrar dene.";
+  } finally {
+    $("photoBtn").disabled = false;
+  }
+});
+
+$("ocrScore").addEventListener("click", () => {
+  const text = $("ocrText").value.trim();
+  if (!text) return;
+  $("status").textContent = "";
+  showResult(pending, text);
+});
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js");
