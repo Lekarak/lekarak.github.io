@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Etiket Puanı</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#14201A">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #14201A;          /* koyu yeşil-siyah: etiket mürekkebi */
+    --paper: #F7F5EF;        /* kağıt */
+    --card: #FFFFFF;
+    --butter: #F2C94C;       /* fiyat etiketi sarısı */
+    --carrot: #E4722B;       /* havuç */
+    --good: #1F6B45;
+    --mid: #B9741A;
+    --bad: #A63428;
+    --muted: #5C6B61;
+    --line: #E1E3D9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-size: 17px; line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  main { max-width: 480px; margin: 0 auto; padding: 20px 18px 56px; }
+
+  .brandbar { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .brandbar svg { display: block; }
+  .brandbar b { font-weight: 800; letter-spacing: -0.02em; font-size: 1.05rem; }
+
+  h1 { font-size: 2.1rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 8px; }
+  .intro { margin: 0 0 22px; color: var(--muted); max-width: 34em; }
+
+  form { display: flex; gap: 8px; }
+  input, textarea {
+    font: inherit; border: 2px solid var(--ink); border-radius: 12px; background: var(--card);
+  }
+  input { flex: 1; font-size: 1.1rem; padding: 14px; letter-spacing: 0.06em; }
+  button {
+    font: inherit; font-weight: 700; padding: 14px 18px; border: 2px solid var(--ink);
+    border-radius: 12px; background: var(--ink); color: var(--butter); cursor: pointer;
+  }
+  button:active { transform: translateY(1px); }
+  input:focus-visible, button:focus-visible, textarea:focus-visible {
+    outline: 3px solid var(--carrot); outline-offset: 2px;
+  }
+  #scan {
+    width: 100%; margin-top: 10px; background: var(--butter); color: var(--ink);
+    font-size: 1.1rem; padding: 16px;
+  }
+
+  #reader { display: none; width: 100%; min-height: 240px; margin-top: 12px; border: 2px solid var(--ink); border-radius: 14px; overflow: hidden; background: #000; }
+  #reader.on { display: block; }
+  #reader video { width: 100% !important; display: block; }
+
+  /* Tarama sırasında kamera tüm ekranı kaplar */
+  body.scanning { overflow: hidden; }
+  body.scanning #reader {
+    position: fixed; inset: 0; z-index: 40; margin: 0; border: 0; border-radius: 0; min-height: 0;
+  }
+  body.scanning #reader video { height: 100% !important; object-fit: cover; }
+  body.scanning #reader__scan_region { min-height: 100vh; }
+  #reader:fullscreen { width: 100vw !important; height: 100vh !important; }
+  #scanUI {
+    position: fixed; inset: 0; z-index: 41; display: flex; flex-direction: column;
+    justify-content: space-between; padding: 16px; pointer-events: none;
+  }
+  #scanUI[hidden] { display: none; }
+  #scanUI > * { pointer-events: auto; }
+  .scanTop { display: flex; justify-content: flex-end; }
+  .scanBottom {
+    background: rgba(20, 32, 26, 0.72); color: var(--paper);
+    border-radius: 18px; padding: 14px 16px; display: grid; gap: 12px;
+    max-height: 28vh; overflow: auto;
+  }
+  .scanBottom label { display: grid; gap: 4px; }
+  .scanBottom #status { margin: 0; color: var(--paper); font-size: 0.95rem; }
+  .scanRow { display: flex; align-items: center; gap: 12px; }
+  .scanRow label { flex: 1; font-size: 0.85rem; color: #C9D3CA; }
+  #scanZoom, #frameSize { width: 100%; accent-color: var(--butter); }
+  .frameRow { font-size: 0.85rem; color: #C9D3CA; }
+  .roundBtn {
+    background: rgba(20, 32, 26, 0.86); color: var(--paper); border: 0;
+    border-radius: 999px; padding: 10px 16px; font-weight: 700;
+  }
+  #torch.on { background: var(--butter); color: var(--ink); }
+  #status { margin: 18px 0 0; min-height: 1.5em; color: var(--muted); }
+
+  /* Sonuç: raf etiketi */
+  #result { display: none; margin-top: 22px; }
+  .head {
+    background: var(--ink); color: var(--paper);
+    padding: 16px 18px; border-radius: 14px 14px 0 0;
+  }
+  .name { font-weight: 700; font-size: 1.2rem; line-height: 1.2; }
+  .brand, .source { color: #B7C2B8; font-size: 0.9rem; }
+  .source { margin-top: 6px; font-size: 0.78rem; }
+  .source a { color: inherit; }
+
+  .scores {
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 1px;
+    background: var(--ink); border: 2px solid var(--ink); border-top: 0;
+    border-radius: 0 0 14px 14px; overflow: hidden;
+  }
+  .card { background: var(--card); padding: 16px 12px; text-align: center; }
+  .card .lbl { font-size: 0.85rem; color: var(--muted); }
+  .score {
+    font-weight: 800; letter-spacing: -0.05em; line-height: 0.9;
+    display: inline-grid; place-items: center; color: var(--card);
+  }
+  .card .score {
+    font-size: 3.6rem; width: 100%; padding: 10px 0 12px; border-radius: 10px; margin-top: 6px;
+  }
+  .score small { display: block; font-size: 0.85rem; font-weight: 700; letter-spacing: 0; opacity: 0.85; }
+  .card .sub { font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+  .grade { color: var(--ink) !important; }
+
+  h3 { margin: 26px 0 0; font-size: 1.02rem; font-weight: 700; }
+  ul { list-style: none; padding: 0; margin: 6px 0 18px; }
+  li {
+    padding: 11px 0; border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+  }
+  .pts { font-weight: 800; white-space: nowrap; }
+  .minus { color: var(--bad); }
+  .plus { color: var(--good); }
+  .info { color: var(--muted); font-weight: 700; font-size: 0.85rem; }
+  li details { flex: 1; margin-top: 0; font-size: inherit; color: inherit; }
+  li summary { font-weight: 400; }
+  li details p { margin: 8px 0 2px; font-size: 0.88rem; color: var(--muted); }
+  li details a { color: var(--ink); }
+  #alts li { cursor: pointer; }
+  #alts .pts { background: var(--good); color: #fff; border-radius: 999px; padding: 3px 11px; font-size: 0.9rem; }
+
+  details { margin-top: 10px; color: var(--muted); font-size: 0.95rem; }
+  summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+
+  #ocr {
+    display: none; margin-top: 16px; padding: 18px; background: var(--card);
+    border: 2px dashed var(--ink); border-radius: 14px;
+  }
+  #ocr p { margin: 0 0 12px; }
+  #photoBtn { width: 100%; background: var(--butter); color: var(--ink); }
+  #ocrText {
+    display: none; width: 100%; margin-top: 12px; font-size: 0.95rem; padding: 12px; resize: vertical;
+  }
+  #ocrScore { width: 100%; margin-top: 8px; display: none; }
+
+  #cam { position: relative; margin-top: 12px; border: 2px solid var(--ink); border-radius: 14px; overflow: hidden; background: #000; }
+  #cam[hidden], #camControls[hidden] { display: none; }
+  #camVideo { display: block; width: 100%; }
+  .frame { position: absolute; inset: 12% 8%; border: 3px solid var(--butter); border-radius: 8px; pointer-events: none; }
+  #camControls { margin-top: 10px; }
+  #camControls label { display: block; font-size: 0.95rem; color: var(--muted); }
+  #zoom { width: 100%; accent-color: var(--carrot); }
+  #shoot { width: 100%; margin-top: 8px; }
+
+  .note { margin-top: 30px; font-size: 0.83rem; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="brandbar">
+    <svg width="30" height="30" viewBox="0 0 30 30" role="img" aria-label="Etiket Puanı">
+      <rect x="1" y="6" width="3" height="18" rx="1" fill="#14201A"/>
+      <rect x="6" y="6" width="2" height="18" rx="1" fill="#14201A"/>
+      <rect x="10" y="6" width="4" height="18" rx="1" fill="#14201A"/>
+      <rect x="16" y="6" width="2" height="18" rx="1" fill="#14201A"/>
+      <path d="M23.5 26 L20.5 13 h6 Z" fill="#E4722B"/>
+      <path d="M23.5 13 V8 M23.5 10 l3-2 M23.5 10 l-3-2" stroke="#1F6B45" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+    </svg>
+    <b>Etiket Puanı</b>
+  </div>
+  <h1>Bu ürün kaç puan?</h1>
+  <p class="intro">Barkod numarasını yaz, ürün Ray Peat kriterlerine göre 10 üzerinden puanlansın, bilimsel veriler de hesaba katılsın.</p>
+
+  <form id="f">
+    <input id="code" inputmode="numeric" placeholder="8690000000000" aria-label="Barkod numarası" required>
+    <button type="submit">Puanla</button>
+  </form>
+  <button id="scan" type="button">📷 Kamerayla okut</button>
+  <div id="reader"></div>
+  <div id="scanUI" hidden>
+    <div class="scanTop">
+      <button type="button" id="scanClose" class="roundBtn">Kapat</button>
+    </div>
+    <div class="scanBottom">
+      <div id="statusSlot"></div>
+      <div class="scanRow">
+        <button type="button" id="torch" class="roundBtn">Işık</button>
+        <label id="scanZoomWrap" hidden>Yakınlaştır<input type="range" id="scanZoom"></label>
+      </div>
+      <label class="frameRow">Okuma alanı<input type="range" id="frameSize" min="40" max="95" step="5"></label>
+    </div>
+  </div>
+
+  <p id="status" role="status"></p>
+
+  <section id="ocr">
+    <p>İçindekiler kısmının fotoğrafını çek, yazıyı okuyup puanlayayım.</p>
+    <input type="file" id="photo" accept="image/*" capture="environment" hidden>
+    <button id="photoBtn" type="button">📸 İçindekilerin fotoğrafını çek</button>
+    <div id="cam" hidden>
+      <video id="camVideo" playsinline muted></video>
+      <div class="frame"></div>
+    </div>
+    <div id="camControls" hidden>
+      <label id="zoomWrap" hidden>Yakınlaştır<input type="range" id="zoom"></label>
+      <button id="shoot" type="button">Çek</button>
+    </div>
+    <textarea id="ocrText" rows="6" aria-label="Okunan içindekiler"></textarea>
+    <button id="ocrScore" type="button">Bu metni puanla</button>
+  </section>
+
+  <section id="result">
+    <div class="head">
+      <div class="name" id="name"></div>
+      <div class="brand" id="brand"></div>
+      <div class="source" id="source"></div>
+    </div>
+    <div class="scores">
+      <div class="card">
+        <div class="lbl">Puan</div>
+        <div class="score" id="score"></div>
+        <div class="sub">Ray Peat ağırlıklı</div>
+      </div>
+      <div class="card">
+        <div class="lbl">Nutri-Score</div>
+        <div class="score grade" id="nutri"></div>
+        <div class="sub" id="nova"></div>
+      </div>
+    </div>
+    <h3>Ray Peat'e göre</h3>
+    <ul id="reasons"></ul>
+    <h3>Bilimsel verilerden</h3>
+    <ul id="sciReasons"></ul>
+    <div id="altBox" hidden>
+      <h3>Daha iyi alternatifler</h3>
+      <ul id="alts"></ul>
+    </div>
+    <details>
+      <summary>İçindekiler</summary>
+      <p id="ingredients"></p>
+    </details>
+  </section>
+
+  <p class="note">Puan Ray Peat kriterlerine dayanır. Bilimsel verilerden sadece Ray Peat'in yaklaşımıyla çelişmeyen, kanıtı güçlü riskler (trans yağ, işlenmiş et, ultra işlenmiş gıda) puanı düşürür. Nutri-Score, şeker, tuz ve doymuş yağ bilgi olarak gösterilir, puanı etkilemez. Puanlar tıbbi tavsiye değildir. Ürün bilgileri Open Food Facts'ten gelir. <span id="ver">sürüm 7</span></p>
+</main>
+
+<script>
+// Bulut okuyucu anahtarı. "helloworld" deneme anahtarıdır, ocr.space'ten kendi ücretsiz anahtarını alıp buraya yaz.
+const OCR_SPACE_KEY = "helloworld";
+
+// Cloudflare Worker adresin (örn. "https://etiket-puani.kullaniciadin.workers.dev"). Boşsa direkt Open Food Facts kullanılır.
+const WORKER_URL = "https://etiket-puani.tdglpi.workers.dev";
+
+// Türkçe karakterleri sadeleştir: "Ayçiçek" -> "aycicek"
+function norm(str) {
+  return str.toLocaleLowerCase("tr")
+    .replace(/ı/g, "i").replace(/ç/g, "c").replace(/ğ/g, "g")
+    .replace(/ö/g, "o").replace(/ş/g, "s").replace(/ü/g, "u")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function lev(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1,
+        d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+
+// Kelime birebir yoksa, 1-2 harfi yanlış okunmuş hâlini de kabul et (her kelime ayrı kontrol edilir)
+function has(text, words) {
+  const tokens = text.split(/[^a-z0-9]+/).filter(Boolean);
+  const tol = len => len >= 9 ? 2 : len >= 5 ? 1 : 0;
+  return words.some(w => {
+    const kw = norm(w);
+    if (text.includes(kw)) return true;
+    const parts = kw.split(" ");
+    if (parts.every(p => tol(p.length) === 0)) return false;
+    for (let i = 0; i + parts.length <= tokens.length; i++) {
+      const ok = parts.every((p, j) => {
+        const tk = tokens[i + j];
+        const cand = j === parts.length - 1 ? tk.slice(0, p.length) : tk;
+        return lev(p, cand) <= tol(p.length);
+      });
+      if (ok) return true;
+    }
+    return false;
+  });
+}
+
+// Her kuralın gerekçesi ve dogalmaxx.com'daki ilgili yazı
+const DOC = "https://dogalmaxx.com/articles/";
+const WHY = {
+  seed: ["Bu çerçevede çoklu doymamış yağlar tiroidi baskılar, kolayca oksitlenerek zehirli yıkım ürünleri oluşturur ve hücresel enerji üretimini bozar. Belirtileri düşük vücut ısısı, yavaş nabız ve yorgunluk olarak anlatılır.", "coklu-doymamis-yaglar-gerekli-mi-zehir-mi"],
+  omega: ["Balık yağı ve omega-3 kolayca oksitlenir; tiroidi ve bağışıklığı baskıladığı, dokularda akrolein gibi zehirli yıkım ürünleri ve yaşlılık pigmenti lipofuscin biriktirdiği savunulur.", "buyuk-balik-yagi-deneyi"],
+  palm: ["Aynı mantığın hafif hâli: palm yağının çoklu doymamış yağ oranı tohum yağlarından düşük olduğu için cezası da küçüktür.", "coklu-doymamis-yaglar-gerekli-mi-zehir-mi"],
+  nuts: ["Kuruyemiş ve tohumlar çoklu doymamış yağ taşır; aynı oksidasyon ve tiroid baskısı gerekçesiyle ceza alır.", "coklu-doymamis-yaglar-gerekli-mi-zehir-mi"],
+  soy: ["Soya hem çoklu doymamış yağ kaynağıdır hem de östrojeniktir. Östrojen burada kadınlık hormonu değil, hücrenin oksijenle enerji üretmesine karışan bir stres hormonu olarak ele alınır.", "ostrojen-peat-in-butun-sistemini-baglayan-hormon"],
+  starch: ["Asıl suçlunun şeker değil nişasta ve tohum yağları olduğu savunulur. Nişasta bağırsakta fermente olup endotoksin üretimini artırır; sonuçta şişkinlik, karaciğer yükü ve iltihap.", "fruktoz-seytanlastirilan-seker-gercekte-ne-yapiyor"],
+  phos: ["Kireçlenme dışarıdan dökülen kalsiyum değil; fosfat-PTH-kalsiyum dengesi ve patolojik mineralizasyonla iç içe bir süreçtir. Fazla fosfat bu dengeyi bozar.", "osteoartrit"],
+  gum: ["Zamklar sindirilmeden bağırsağa geçip fermantasyonu ve endotoksin emilimini artırır. Aynı eksende çiğ havuç, endotoksin ve östrojen geri emilimini azalttığı için önerilir.", "cig-havuc-bagirsak-ostrojen-ve-migren"],
+  sweet: ["Yapay tatlandırıcı, şekerin sağladığı hücresel yakıtı vermeden tatlı sinyali üretir. Bu çerçevede glikoz, stres hormonlarını azaltan ve tiroidi destekleyen bir yakıttır.", "seker-gercekten-sadece-bos-kalori-mi"],
+  iron: ["Demir, gerekli olduğu kadar kolayca zararlı hâle gelebilen reaktif bir metaldir; fazlası kırmızı hücreleri kırılganlaştırır ve demir-PUFA-lipofuscin zinciriyle doku yaşlanmasına katkı sayılır.", "demir-eksikligi-ve-demir-fazlaligi-anemi"],
+  fat: ["Hindistan cevizi yağı ve tereyağı, tohum yağlarının aksine metabolizmayı baskılamaz; tiroid işlevini destekler ve oksidasyonu yavaşlatır.", "hindistan-cevizi-yagi"],
+  base: ["Süt, yumurta, jelatin ve meyve bu çerçevenin temel gıdalarıdır: kolay yakılan yakıt ve mikrobesin kaynağı.", "glowup"],
+  gel: ["Sadece kas eti ağırlıklı beslenmek triptofan-sistein ağırlıklı bir profil yaratır; jelatin ve kolajendeki glisin-prolin dengesi tiroidi ve uykuyu destekleyen karşı kutuptur.", "aminoasitler-protein-dengesi-glisin-triptofan"],
+  sugarfuel: ["Bal, pekmez ve meyve suyu karaciğer glikojenini besler. Portakal suyu, hipoglisemide adrenalin ve kortizolü düşüren bir içecek olarak anlatılır.", "portakal-suyu-meselesi"],
+  trans: ["Trans yağın kalp hastalığı riskini artırdığı konusunda güçlü bilimsel uzlaşı var; bu, Ray Peat çerçevesiyle de çelişmiyor.", ""],
+  meat: ["Dünya Sağlık Örgütü işlenmiş eti kanserojen olarak sınıflandırıyor; nitritli ürünler bu yüzden ceza alıyor.", ""],
+  ultra: ["Ultra işlenmiş gıda tüketimi büyük gözlemsel çalışmalarda kötü sağlık sonuçlarıyla ilişkili bulundu.", ""]
+};
+
+function scoreProduct(ingredientsRaw) {
+  let text = norm(ingredientsRaw);
+  // Baştaki "İçindekiler:" başlığını ve öncesini at
+  const lbl = text.search(/icindekiler|ingredients/);
+  if (lbl >= 0 && lbl < 80) text = text.slice(lbl).replace(/^(icindekiler|ingredients)\s*[:.\-]?\s*/, "");
+  const first = text.split(/[,;(]/)[0].trim();
+  // "hindistan cevizi" ceviz sayılmasın
+  const noCoconut = text.replace(/hindistan ?cevizi/g, "").replace(/coconut/g, "");
+  let score = 10;
+  const reasons = [];
+  const add = (pts, label, key) => {
+    const w = WHY[key] || [];
+    score += pts;
+    reasons.push({ pts, label, why: w[0] || "", url: w[1] ? DOC + w[1] : "" });
+  };
+
+  if (has(text, ["ayçiçek", "aycicek", "mısır yağı", "mısırözü yağı", "soya yağı", "kanola", "kolza",
+                 "pamuk", "aspir", "bitkisel yağ", "sunflower", "corn oil", "soybean oil",
+                 "rapeseed", "canola", "cottonseed", "safflower", "vegetable oil",
+                 "tournesol", "colza", "huile vegetale", "sonnenblumen", "rapsol", "pflanzenol"]))
+    add(-5, "Tohum yağı içeriyor", "seed");
+
+  if (has(noCoconut, ["balık yağı", "keten", "chia", "ceviz", "fish oil", "flax", "linseed", "walnut"]))
+    add(-3, "Omega-3 / PUFA kaynağı içeriyor", "omega");
+
+  if (has(text, ["palm yağı", "palm yagi", "palmiye yağı", "palm oil", "palm fat", "huile de palme", "palmol", "palmfett"]))
+    add(-2, "Palm yağı (orta düzeyde PUFA)", "palm");
+
+  if (has(text, ["fındık", "badem", "yer fıstığı", "fıstık", "kaju", "susam", "tahin", "ay çekirdeği",
+                 "hazelnut", "almond", "peanut", "cashew", "sesame", "pistachio",
+                 "noisette", "amande", "arachide", "haselnuss", "mandel", "erdnuss"]))
+    add(-2, "Kuruyemiş / tohum içeriyor (PUFA)", "nuts");
+
+  if (has(text, ["soya", "soja", "soy"]))
+    add(-2, "Soya içeriği var", "soy");
+
+  const gums = [
+    ["karragenan", "e407", "carrageenan"],
+    ["guar", "e412"],
+    ["ksantan", "e415", "xanthan"],
+    ["keçiboynuzu", "e410", "locust bean"]
+  ].filter(g => has(text, g)).length;
+  if (gums > 0) add(-Math.min(gums, 3), "Kıvam artırıcı / zamk (" + gums + " adet)", "gum");
+
+  if (has(text, ["aspartam", "sukraloz", "asesülfam", "sakarin", "e950", "e951", "e954", "e955",
+                 "sucralose", "acesulfame", "saccharin"]))
+    add(-2, "Yapay tatlandırıcı var", "sweet");
+
+  if (has(text, ["demir", "iron", "ferrous", "ferric"]))
+    add(-2, "Demirle zenginleştirilmiş", "iron");
+
+  if (/(^|\s)un(u)?(\s|$)|nisasta|flour|starch/.test(first))
+    add(-2, "İlk içerik un veya nişasta", "starch");
+  else if (has(text, ["nisasta", "bugday unu", "misir unu", "starch", "wheat flour", "maltodekstrin", "maltodextrin"]))
+    add(-2, "Nişasta / un içeriyor", "starch");
+
+  if (has(text, ["fosforik asit", "fosfat", "phosphoric acid", "phosphate", "e338", "e339", "e340",
+                 "e341", "e343", "e450", "e451", "e452"]))
+    add(-2, "Eklenmiş fosfat / fosforik asit", "phos");
+
+  if (has(text, ["tereyağ", "hindistan cevizi yağı", "hindistancevizi yağı", "süt yağı", "butter", "coconut oil", "milk fat"]))
+    add(1, "Tereyağı / hindistan cevizi / süt yağı", "fat");
+
+  if (has(first, ["süt", "peynir", "yumurta", "jelatin", "meyve", "portakal", "elma",
+                  "milk", "cheese", "egg", "gelatin", "fruit", "orange"]))
+    add(1, "Ana içerik süt, yumurta, jelatin veya meyve", "base");
+
+  if (has(text, ["jelatin", "kolajen", "kollajen", "gelatin", "collagen", "glisin", "glycine"]))
+    add(1, "Jelatin / kolajen (glisin kaynağı)", "gel");
+
+  if (has(text, ["bal", "honey", "portakal suyu", "orange juice", "keçiboynuzu pekmezi", "pekmez"]))
+    add(1, "Bal, pekmez veya meyve suyu", "sugarfuel");
+
+  return { score: Math.max(0, Math.min(10, score)), reasons };
+}
+
+// ---- Bilimsel veriler ----
+// Sadece Ray Peat ile çelişmeyen riskler puanı düşürür, geri kalanı bilgi olarak gösterilir.
+function scienceExtras(p, ingredientsRaw) {
+  const text = norm(ingredientsRaw || "");
+  const n = p.nutriments || {};
+  const num = k => (typeof n[k] === "number" && isFinite(n[k])) ? n[k] : null;
+  const penalties = [], info = [];
+  const grade = /^[a-e]$/i.test(p.nutriscore_grade || "") ? p.nutriscore_grade.toUpperCase() : "";
+  const nova = [1, 2, 3, 4].includes(+p.nova_group) ? +p.nova_group : 0;
+
+  // Puanı düşürenler
+  const markers = [
+    ["emulgator", "emulsifier", "mono ve digliserit", "e471"],
+    ["aroma verici", "yapay aroma", "flavouring", "flavoring", "artificial flavor"],
+    ["glikoz surubu", "fruktoz surubu", "glukoz surubu", "misir surubu", "invert seker", "glucose syrup", "fructose syrup", "corn syrup"],
+    ["maltodekstrin", "maltodextrin", "modifiye nisasta", "modified starch"],
+    ["renklendirici", "colour", "e102", "e110", "e122", "e124", "e129", "e150"]
+  ].filter(g => has(text, g)).length;
+  if (nova === 4) penalties.push({ pts: -1, label: "Ultra işlenmiş gıda (NOVA 4)", why: WHY.ultra[0] });
+  else if (!nova && markers >= 2) penalties.push({ pts: -1, label: "Ultra işlenmiş görünüyor (tahmini)", why: WHY.ultra[0] });
+
+  if (has(text, ["hidrojene", "hydrogenated", "margarin", "margarine"]))
+    penalties.push({ pts: -3, label: "Hidrojene yağ / trans yağ riski", why: WHY.trans[0] });
+
+  if (has(text, ["nitrit", "nitrite", "e250", "e251", "e252", "sucuk", "sosis", "pastirma"]))
+    penalties.push({ pts: -2, label: "İşlenmiş et / nitrit (kanser riskiyle ilişkili)", why: WHY.meat[0] });
+
+  // Sadece bilgi
+  const level = (v, low, high) => v === null ? null : v > high ? "yüksek" : v > low ? "orta" : "düşük";
+  const rows = [
+    ["Şeker", num("sugars_100g"), 5, 22.5],
+    ["Doymuş yağ", num("saturated-fat_100g"), 1.5, 5],
+    ["Tuz", num("salt_100g"), 0.3, 1.5]
+  ];
+  for (const [name, v, low, high] of rows) {
+    const l = level(v, low, high);
+    if (l) info.push({ badge: l, label: name + " " + v + " g/100 g" });
+  }
+  if (!grade && !rows.some(r => r[1] !== null)) info.push({ badge: "?", label: "Besin değerleri bilinmiyor" });
+
+  return { penalties, info, grade, nova };
+}
+
+const $ = id => document.getElementById(id);
+
+let scanner = null;
+
+// Okuma alanı (beyaz çerçeve) boyutu: kullanıcı büyütüp küçültebilir
+let framePct = +(localStorage.getItem("framePct") || 70);
+
+function viewFinder(w, h) {
+  const width = Math.round(Math.min(w, h * 1.6) * framePct / 100);
+  return { width, height: Math.round(width * 0.5) };
+}
+
+// Tam ekran kamera kaplaması
+function fullScreenReader(on) {
+  const r = $("reader");
+  if (!on) { r.removeAttribute("style"); return; }
+  const css = {
+    position: "fixed", top: "0", left: "0", right: "0", bottom: "0",
+    width: "100%", height: "100%", "max-width": "none", margin: "0",
+    border: "0", "border-radius": "0", "z-index": "40", background: "#000"
+  };
+  for (const k in css) r.style.setProperty(k, css[k], "important");
+  const fit = () => {
+    const v = r.querySelector("video");
+    if (!v) return;
+    v.style.setProperty("width", "100%", "important");
+    v.style.setProperty("height", "100%", "important");
+    v.style.setProperty("object-fit", "cover", "important");
+  };
+  fit(); setTimeout(fit, 300); setTimeout(fit, 1000);
+}
+
+function openScanUI() {
+  document.body.classList.add("scanning");
+  fullScreenReader(true);
+  $("scanUI").hidden = false;
+  // Kontroller kamera katmanının üzerinde kalır; tarayıcının yerel tam ekranını açma.
+  $("statusSlot").appendChild($("status"));   // durum yazısı kameranın üstünde görünsün
+  let caps = {};
+  try { caps = scanner.getRunningTrackCapabilities() || {}; } catch {}
+  const z = $("scanZoom");
+  if (caps.zoom) {
+    z.min = caps.zoom.min; z.max = caps.zoom.max; z.step = caps.zoom.step || 0.1; z.value = caps.zoom.min;
+    z.oninput = () => scanner && scanner.applyVideoConstraints({ advanced: [{ zoom: +z.value }] }).catch(() => {});
+    $("scanZoomWrap").hidden = false;
+  } else {
+    $("scanZoomWrap").hidden = true;
+  }
+  $("torch").hidden = !caps.torch;
+  $("torch").classList.remove("on");
+  $("frameSize").value = framePct;
+}
+
+function closeScanUI() {
+  document.body.classList.remove("scanning");
+  fullScreenReader(false);
+  $("scanUI").hidden = true;
+  const st = $("status");
+  if (st.parentElement === $("statusSlot")) $("scanUI").insertAdjacentElement("afterend", st);
+}
+
+$("scanClose").addEventListener("click", () => stopScanner());
+
+// Çerçeve boyutu değişince tarayıcıyı yeni boyutla yeniden başlat
+$("frameSize").addEventListener("change", async () => {
+  framePct = +$("frameSize").value;
+  try { localStorage.setItem("framePct", framePct); } catch {}
+  if (!scanner) return;
+  await stopScanner();
+  $("scan").click();
+});
+
+$("torch").addEventListener("click", async () => {
+  if (!scanner) return;
+  const on = !$("torch").classList.contains("on");
+  try {
+    await scanner.applyVideoConstraints({ advanced: [{ torch: on }] });
+    $("torch").classList.toggle("on", on);
+  } catch {
+    $("status").textContent = "Bu telefonda ışık açılamıyor.";
+  }
+});
+
+async function stopScanner() {
+  closeScanUI();
+  if (scanner) {
+    try { await scanner.stop(); } catch {}
+    scanner.clear();
+    scanner = null;
+  }
+  $("scan").textContent = "📷 Kamerayla okut";
+  $("reader").classList.remove("on");
+  if (liveTimer) stopLive();
+}
+
+$("scan").addEventListener("click", async () => {
+  if (scanner) { stopScanner(); return; }
+  if (typeof Html5Qrcode === "undefined") {
+    $("status").textContent = "Kamera aracı yüklenemedi. Sayfayı yenileyip tekrar dene.";
+    return;
+  }
+  closeCam();
+  $("ocr").style.display = "none";
+  $("result").style.display = "none";
+  $("status").textContent = "Kamera açılıyor…";
+  $("reader").classList.add("on"); // kamera alanı, tarayıcı başlamadan önce görünür olmalı
+  let done = false;
+  const F = Html5QrcodeSupportedFormats;
+  scanner = new Html5Qrcode("reader", {
+    formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E],
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+  });
+  $("scan").textContent = "Kamerayı kapat";
+  try {
+    await scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: viewFinder },
+      async text => {
+        if (done) return;
+        done = true;
+        if (navigator.vibrate) navigator.vibrate(80);
+        $("code").value = text;
+        lookup(text, true); // kamera açık kalsın, içindekiler canlı okunabilsin
+      }
+    );
+    openScanUI();
+    if (!done) $("status").textContent = "Kamerayı ürünün üzerinde gezdir: barkodu ve içindekileri birlikte okuyorum.";
+    startLive();
+  } catch {
+    await stopScanner();
+    $("status").textContent = "Kameraya erişilemedi. Tarayıcı kamera izni istediğinde İzin ver'e bas.";
+  }
+});
+
+$("f").addEventListener("submit", e => {
+  e.preventDefault();
+  stopScanner();
+  lookup($("code").value);
+});
+
+const SOURCES = {
+  off: "Kaynak: Open Food Facts",
+  foto: "Kaynak: senin çektiğin fotoğraf",
+  web: "Kaynak: internetten bulundu, içindekileri kontrol et"
+};
+
+async function lookup(raw, keepCam) {
+  const code = String(raw).replace(/\D/g, "");
+  if (!code) return;
+  if (!keepCam) { stopLive(); await stopScanner(); }
+  closeCam();
+  $("result").style.display = "none";
+  $("status").textContent = "Ürün aranıyor…";
+
+  if (WORKER_URL) {
+    const slow = setTimeout(() => {
+      $("status").textContent = "Ürün internette aranıyor, 10-20 saniye sürebilir…";
+    }, 3000);
+    try {
+      const res = await fetch(WORKER_URL + "/lookup?code=" + code);
+      const d = await res.json();
+      clearTimeout(slow);
+      if (!res.ok) throw new Error();
+      const p = { code, product_name: d.name, brands: d.brand, source: d.source, url: d.url,
+                  nutriscore_grade: d.nutriscore, nova_group: d.nova, nutriments: d.nutriments, tags: d.tags || "" };
+      if (d.found) { stopLive(); await stopScanner(); showResult(p, d.ingredients); return; }
+      askPhoto(d.limit
+        ? "Bugünkü internet araması sınırı doldu. İçindekilerin fotoğrafını çekerek puanlayabilirsin."
+        : "Bu ürünün içindekilerini hiçbir yerde bulamadım. Fotoğrafını çek, bir kere okutman yeterli, sonra hep hatırlanacak.", p);
+      return;
+    } catch {
+      clearTimeout(slow);
+      // sunucuya ulaşılamazsa aşağıdaki doğrudan aramaya geç
+    }
+  }
+
+  try {
+    const res = await fetch("https://world.openfoodfacts.org/api/v2/product/" + code +
+      ".json?fields=product_name,product_name_tr,brands,ingredients_text_tr,ingredients_text,ingredients_text_en,ingredients,ingredients_tags,additives_tags,nutriscore_grade,nova_group,nutriments");
+    const data = await res.json();
+    if (data.status !== 1) {
+      askPhoto("Bu barkod Open Food Facts'te kayıtlı değil. İçindekilerin fotoğrafını çekerek puanlayabilirsin.", { code });
+      return;
+    }
+    const p = { ...data.product, code, source: "off" };
+    p.tags = [].concat(p.ingredients_tags || [], p.additives_tags || [])
+      .filter(t => typeof t === "string" && !/(oil-and-fat|and-fat$)/.test(t))
+      .map(t => t.replace(/^[a-z]{2}:/, "").replace(/-/g, " ")).join(", ");
+    const ing = p.ingredients_text_tr || p.ingredients_text_en || p.ingredients_text ||
+      (p.ingredients || []).map(i => i.text).filter(Boolean).join(", ");
+    if (!ing) {
+      askPhoto("Bu ürünün içindekiler bilgisi eksik. Paketin arkasındaki içindekiler kısmının fotoğrafını çek.", p);
+      return;
+    }
+    stopLive(); await stopScanner();
+    showResult(p, ing);
+  } catch {
+    $("status").textContent = "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.";
+  }
+}
+
+function showResult(p, ing) {
+    $("ocr").style.display = "none";
+    // Etiket dili ne olursa olsun, Open Food Facts'in İngilizce içerik etiketleri de puanlamaya katılır
+    const scoreText = ing + (p.tags ? ", " + p.tags : "");
+    const { score, reasons } = scoreProduct(scoreText);
+    const sci = scienceExtras(p, scoreText);
+    const total = Math.max(0, Math.min(10, score + sci.penalties.reduce((t, r) => t + r.pts, 0)));
+    const el = $("score");
+    el.innerHTML = total + "<small>/10</small>";
+    el.style.background = total >= 7 ? "var(--good)" : total >= 4 ? "var(--mid)" : "var(--bad)";
+    const nutriColors = { A: "#038141", B: "#85BB2F", C: "#FECB02", D: "#EE8100", E: "#E63E11" };
+    const nu = $("nutri");
+    nu.textContent = sci.grade || "?";
+    nu.style.background = nutriColors[sci.grade] || "var(--line)";
+    $("nova").textContent = sci.nova ? "NOVA " + sci.nova + (sci.nova === 4 ? " · ultra işlenmiş" : "") : "İşlenme derecesi bilinmiyor";
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const sciRows = sci.penalties.map(reasonRow)
+      .concat(sci.info.map(r => `<li><span>${esc(r.label)}</span><span class="info">${esc(r.badge)}</span></li>`));
+    $("sciReasons").innerHTML = sciRows.length ? sciRows.join("")
+      : "<li><span>Ek bir risk bulunmadı</span><span class='pts plus'>0</span></li>";
+    $("name").textContent = p.product_name_tr || p.product_name || "İsimsiz ürün";
+    $("brand").textContent = p.brands || "";
+    const src = $("source");
+    src.textContent = SOURCES[p.source] || "";
+    if (p.source === "web" && p.url && /^https?:\/\//.test(p.url)) {
+      src.append(" · ");
+      const a = document.createElement("a");
+      a.href = p.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = "sayfayı aç";
+      src.append(a);
+    }
+    $("reasons").innerHTML = reasons.length
+      ? reasons.map(reasonRow).join("")
+      : "<li><span>Sorunlu içerik bulunmadı</span><span class='pts plus'>0</span></li>";
+    $("ingredients").textContent = ing;
+    $("status").textContent = "";
+    $("result").style.display = "block";
+    reportScore(p.code, total);
+    loadAlternatives(p.code, total);
+}
+
+// Puanı sunucuya bildir: herkesin taraması ortak alternatif listesini besler
+// Gerekçesi olan satır dokununca açılır
+function reasonRow(r) {
+  const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const pts = `<span class="pts ${r.pts < 0 ? "minus" : "plus"}">${r.pts > 0 ? "+" : ""}${r.pts}</span>`;
+  if (!r.why) return `<li><span>${esc(r.label)}</span>${pts}</li>`;
+  const link = r.url ? ` <a href="${esc(r.url)}" target="_blank" rel="noopener">Yazının tamamı</a>` : "";
+  return `<li><details><summary>${esc(r.label)}</summary><p>${esc(r.why)}${link}</p></details>${pts}</li>`;
+}
+
+function reportScore(code, score) {
+  if (!WORKER_URL || !code) return;
+  fetch(WORKER_URL + "/score", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, score })
+  }).catch(() => {});
+}
+
+async function loadAlternatives(code, score) {
+  const box = $("altBox");
+  box.hidden = true;
+  if (!WORKER_URL || !code || score >= 8) return;
+  try {
+    const res = await fetch(WORKER_URL + "/alternatives?code=" + code);
+    const d = await res.json();
+    if (!d.items || !d.items.length) return;
+    $("alts").innerHTML = d.items.map(it => {
+      const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const title = esc(it.name || it.code) + (it.brand ? " · " + esc(it.brand) : "");
+      return `<li data-code="${esc(it.code)}"><span>${title}</span><span class="pts">${it.score}/10</span></li>`;
+    }).join("");
+    box.hidden = false;
+  } catch {}
+}
+
+$("alts").addEventListener("click", e => {
+  const li = e.target.closest("li[data-code]");
+  if (!li) return;
+  $("code").value = li.dataset.code;
+  lookup(li.dataset.code);
+});
+
+// ---- Fotoğraftan okuma ----
+let pending = {};
+
+function askPhoto(msg, product) {
+  pending = product || {};
+  if (liveText) { useLiveText(liveText); return; }       // kamerayla zaten okumuşuz
+  if (scanner && liveTimer) {                            // kamera açık: canlı okumayı beklemeye al
+    wantIngredients = true;
+    liveTries = 0;
+    $("status").textContent = "Ürünün içindekiler yazısını kameraya yaklaştır ve sabit tut, kendim okuyacağım.";
+    return;
+  }
+  $("status").textContent = msg;
+  $("ocrText").style.display = "none";
+  $("ocrScore").style.display = "none";
+  $("ocr").style.display = "block";
+}
+
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve();
+  return new Promise((ok, fail) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.0/tesseract.min.js";
+    sc.onload = ok; sc.onerror = fail;
+    document.head.appendChild(sc);
+  });
+}
+
+// Fotoğrafı sadece sarı çerçevenin içi kalacak şekilde kırp
+async function toCanvas(src, crop) {
+  const img = src instanceof Blob ? await createImageBitmap(src) : src;
+  const W = img.width, H = img.height;
+  let sx = 0, sy = 0, sw = W, sh = H;
+  if (crop) {
+    // Fotoğraf ile önizlemenin en-boy oranı farklıysa önce önizlemeye eşitle
+    const va = crop.aspect, pa = W / H;
+    if (pa > va) { sw = H * va; sx = (W - sw) / 2; }
+    else { sh = W / va; sy = (H - sh) / 2; }
+    sx += sw * 0.08; sy += sh * 0.12; sw *= 0.84; sh *= 0.76;
+  }
+  const c = document.createElement("canvas");
+  c.width = Math.round(sw); c.height = Math.round(sh);
+  c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c;
+}
+
+// Bulut okuyucu (OCR.space). 1 MB sınırı için görüntüyü küçültüp sıkıştırır.
+async function cloudOcr(canvas) {
+  const max = 2400, k = Math.min(1, max / Math.max(canvas.width, canvas.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(canvas.width * k); c.height = Math.round(canvas.height * k);
+  c.getContext("2d").drawImage(canvas, 0, 0, c.width, c.height);
+  let q = 0.9, url = c.toDataURL("image/jpeg", q);
+  while (url.length * 0.75 > 950000 && q > 0.3) { q -= 0.15; url = c.toDataURL("image/jpeg", q); }
+  const fd = new FormData();
+  fd.append("apikey", OCR_SPACE_KEY);
+  fd.append("base64Image", url);
+  fd.append("language", "auto");
+  fd.append("OCREngine", "2");
+  fd.append("scale", "true");
+  fd.append("detectOrientation", "true");
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 30000);
+  const res = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: fd, signal: ctrl.signal });
+  clearTimeout(t);
+  const json = await res.json();
+  if (json.IsErroredOnProcessing || !json.ParsedResults) throw new Error("ocr");
+  return json.ParsedResults.map(r => r.ParsedText).join("\n");
+}
+
+// Küçük yazılar için: büyüt, gri yap, kontrastı artır
+async function prepare(src) {
+  const img = src instanceof Blob ? await createImageBitmap(src) : src;
+  const w0 = img.width || img.videoWidth, h0 = img.height || img.videoHeight;
+  const scale = Math.min(3, Math.max(1, 3000 / Math.max(w0, h0)));
+  const c = document.createElement("canvas");
+  c.width = Math.round(w0 * scale); c.height = Math.round(h0 * scale);
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  const d = ctx.getImageData(0, 0, c.width, c.height), px = d.data;
+  let min = 255, max = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    px[i] = g;
+    if (g < min) min = g;
+    if (g > max) max = g;
+  }
+  const range = Math.max(1, max - min);
+  for (let i = 0; i < px.length; i += 4) {
+    let g = (px[i] - min) / range * 255;
+    g = (g - 128) * 1.4 + 128;
+    g = Math.max(0, Math.min(255, g));
+    px[i] = px[i + 1] = px[i + 2] = g;
+  }
+  ctx.putImageData(d, 0, 0);
+  return c;
+}
+
+async function runOcr(src, crop) {
+  $("photoBtn").disabled = true;
+  $("status").textContent = "Yazı okunuyor…";
+  try {
+    const canvas = await toCanvas(src, crop);
+    let raw = "";
+    if (OCR_SPACE_KEY && navigator.onLine) {
+      try { raw = await cloudOcr(canvas); } catch { raw = ""; }
+    }
+    if (raw.trim().length < 5) {
+      $("status").textContent = "Yazı okunuyor (yedek okuyucu)… İlk seferde biraz sürebilir.";
+      await loadTesseract();
+      const image = await prepare(canvas);
+      const { data } = await Tesseract.recognize(image, "tur", {
+        logger: m => {
+          if (m.status === "recognizing text")
+            $("status").textContent = "Yazı okunuyor (yedek okuyucu)… %" + Math.round(m.progress * 100);
+        }
+      });
+      raw = data.text;
+    }
+    const text = cleanIngredients(raw);
+    if (text.length < 5) {
+      $("status").textContent = "Yazı okunamadı. Yakınlaştırıp içindekiler kısmını çerçeveye sığdır ve tekrar çek.";
+      return;
+    }
+    $("ocrText").value = text;
+    $("ocrText").style.display = "block";
+    $("ocrScore").style.display = "block";
+    $("status").textContent = "Yanlış okunan kelime varsa düzelt, sonra puanla.";
+  } catch {
+    $("status").textContent = "Okuma aracı yüklenemedi. İnternetini kontrol edip tekrar dene.";
+  } finally {
+    $("photoBtn").disabled = false;
+  }
+}
+
+// ---- Canlı içerik okuma ----
+// Barkod taranırken aynı kameradan kareler alınır; görüntü sabitlendiğinde yazı okunur.
+let liveTimer = null, liveBusy = false, lastSig = null, liveTries = 0, lastReading = "";
+let liveText = "";        // barkoddan önce yakalanan içindekiler metni
+let wantIngredients = false; // ürün bulunamadı, içindekiler bekleniyor
+
+function liveVideo() { return document.querySelector("#reader video"); }
+
+function frameSignature(v) {
+  const c = document.createElement("canvas");
+  c.width = 32; c.height = 32;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(v, 0, 0, 32, 32);
+  const d = ctx.getImageData(0, 0, 32, 32).data;
+  const out = [];
+  for (let i = 0; i < d.length; i += 4) out.push((d[i] + d[i + 1] + d[i + 2]) / 3);
+  return out;
+}
+
+function frameDiff(a, b) {
+  let t = 0;
+  for (let i = 0; i < a.length; i++) t += Math.abs(a[i] - b[i]);
+  return t / a.length;
+}
+
+// Okunan metni temizle: başlıktan başla, besin tablosu ve saklama bilgisinde kes, saçma kelimeleri at
+const STOP_WORDS = /(besin de[gğ]erleri|enerji ve besin|ortalama besin|alerjen|nutrition|net a[gğ][iı]rl[iı]k|son t[uü]ketim|tavsiye edilen|saklama|[uü]retici|ithalat|men[sş]ei|www\.|t\.c\.|helal|barkod)/;
+const FOOD_WORDS = ["su", "seker", "tuz", "sut", "un", "yag", "nisasta", "aroma", "asit", "protein",
+  "emulgator", "kakao", "bugday", "misir", "pirinc", "maya", "vitamin", "baharat", "sirke", "surup",
+  "bitkisel", "peynir", "yumurta", "et", "meyve", "sebze", "koruyucu", "tatlandirici", "lesitin",
+  "sugar", "salt", "water", "milk", "flour", "oil", "starch", "acid", "flavour", "flavor"];
+
+function cleanIngredients(raw) {
+  let t = raw.replace(/-\s*\n\s*/g, "").replace(/\s+/g, " ").trim();
+  // Harf harf eşleşen küçük harfli kopya (Türkçe İ dahil), konumlar aslıyla aynı kalsın
+  const low = t => t.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase()
+    .replace(/ı/g, "i").replace(/ç/g, "c").replace(/ğ/g, "g")
+    .replace(/ö/g, "o").replace(/ş/g, "s").replace(/ü/g, "u");
+  // "İçindekiler" başlığı varsa oradan başla
+  const m = /icindekiler|ingredients|ingredients/.exec(low(t));
+  if (m) t = t.slice(m.index + m[0].length).replace(/^\s*[:.\-]\s*/, "");
+  // besin tablosu / saklama bilgisi başlayınca kes
+  const stop = STOP_WORDS.exec(low(t));
+  if (stop && stop.index > 20) t = t.slice(0, stop.index);
+  // anlamsız parçaları at: sesli harfi olmayan ya da tek harflik kelimeler
+  t = t.split(/(\s*[,;.]\s*)/).map(part => {
+    if (/^[\s,;.]*$/.test(part)) return part;
+    const words = part.split(/\s+/).filter(w => {
+      const n = norm(w).replace(/[^a-z0-9%]/g, "");
+      if (!n) return false;
+      if (/^e\d{3}/.test(n) || /\d/.test(n)) return true;      // E kodları ve yüzdeler kalsın
+      return n.length >= 2 && /[aeiou]/.test(n);                // sesli harfi olmayan çöpü at
+    });
+    return words.join(" ");
+  }).join("");
+  return t.replace(/\s*,\s*,+/g, ", ").replace(/\s+/g, " ").replace(/^[\s,;.]+|[\s,;.]+$/g, "").trim();
+}
+
+// Metin gerçekten bir içindekiler listesine benziyor mu?
+function looksLikeIngredients(t) {
+  const n = norm(t);
+  if (n.length < 40) return false;
+  const letters = (n.match(/[a-z]/g) || []).length;
+  if (letters / n.length < 0.6) return false;                   // çoğu rakam/sembolse listesi değildir
+  const hits = FOOD_WORDS.filter(w => new RegExp("(^| )" + w).test(n)).length;
+  const commas = (n.match(/,/g) || []).length;
+  return hits >= 2 && (commas >= 2 || /icindekiler|ingredients/.test(n));
+}
+
+// İki ayrı karede aynı kelimeler çıktıysa okuma güvenilirdir
+function sameReading(a, b) {
+  const set = t => new Set(norm(t).split(/[^a-z0-9]+/).filter(w => w.length >= 4));
+  const A = set(a), B = set(b);
+  if (A.size < 4 || B.size < 4) return false;
+  let common = 0;
+  A.forEach(w => { if (B.has(w)) common++; });
+  return common / Math.min(A.size, B.size) >= 0.6;
+}
+
+function startLive() {
+  if (!OCR_SPACE_KEY || liveTimer) return;
+  liveTries = 0; lastSig = null; liveText = ""; lastReading = ""; wantIngredients = false;
+  liveTimer = setInterval(liveTick, 1200);
+}
+
+function stopLive() {
+  clearInterval(liveTimer);
+  liveTimer = null;
+  liveBusy = false;
+  wantIngredients = false;
+}
+
+async function liveTick() {
+  const v = liveVideo();
+  if (!v || !v.videoWidth || liveBusy || liveTries >= 10) return;
+  const sig = frameSignature(v);
+  if (!lastSig || frameDiff(lastSig, sig) > 5) { lastSig = sig; return; } // elin oynuyorsa bekle
+  lastSig = sig;
+
+  liveBusy = true;
+  liveTries++;
+  try {
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0);
+    const text = cleanIngredients(await cloudOcr(c));
+    if (looksLikeIngredients(text)) {
+      if (lastReading && sameReading(lastReading, text)) {
+        const best = text.length >= lastReading.length ? text : lastReading;
+        if (wantIngredients) { useLiveText(best); return; }
+        if (best.length > liveText.length) liveText = best;
+      } else {
+        lastReading = text;
+        $("status").textContent = "Okudum, doğrulamak için biraz daha sabit tut…";
+      }
+    }
+  } catch {}
+  liveBusy = false;
+
+  if (liveTries >= 10 && wantIngredients) {
+    stopLive();
+    await stopScanner();
+    askPhoto("Yazıyı okuyamadım. İçindekilerin fotoğrafını çekelim.", pending);
+  }
+}
+
+async function useLiveText(text) {
+  stopLive();
+  await stopScanner();
+  if (navigator.vibrate) navigator.vibrate(60);
+  $("status").textContent = "Yanlış okunan kelime varsa düzelt, sonra puanla.";
+  $("ocrText").value = text;
+  $("ocrText").style.display = "block";
+  $("ocrScore").style.display = "block";
+  $("ocr").style.display = "block";
+  $("photoBtn").hidden = false;
+  showResult({ ...pending, source: "foto" }, text);
+  saveIngredients(text);
+}
+
+// Sayfa içi kamera: aç, çek, otomatik kapat
+let camStream = null;
+
+function closeCam() {
+  if (camStream) camStream.getTracks().forEach(t => t.stop());
+  camStream = null;
+  $("camVideo").srcObject = null;
+  $("cam").hidden = true;
+  $("camControls").hidden = true;
+  $("photoBtn").hidden = false;
+}
+
+async function openCam() {
+  await stopScanner();
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 3840 }, height: { ideal: 2160 } }
+    });
+  } catch {
+    $("photo").click(); // kamera açılamazsa telefonun kendi kamerasına düş
+    return;
+  }
+  const v = $("camVideo");
+  v.srcObject = camStream;
+  await v.play();
+  $("photoBtn").hidden = true;
+  $("cam").hidden = false;
+  $("camControls").hidden = false;
+  $("ocrText").style.display = "none";
+  $("ocrScore").style.display = "none";
+  $("status").textContent = "İçindekiler yazısını çerçeveye sığdır, gerekirse yakınlaştır, sonra Çek'e bas.";
+
+  const track = camStream.getVideoTracks()[0];
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  try {
+    if (caps.focusMode && caps.focusMode.includes("continuous"))
+      await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+  } catch {}
+  if (caps.zoom) {
+    const z = $("zoom");
+    z.min = caps.zoom.min; z.max = caps.zoom.max; z.step = caps.zoom.step || 0.1;
+    z.value = Math.min(caps.zoom.max, Math.max(caps.zoom.min, 2));
+    track.applyConstraints({ advanced: [{ zoom: +z.value }] }).catch(() => {});
+    z.oninput = () => track.applyConstraints({ advanced: [{ zoom: +z.value }] }).catch(() => {});
+    $("zoomWrap").hidden = false;
+  } else {
+    $("zoomWrap").hidden = true;
+  }
+}
+
+$("photoBtn").addEventListener("click", openCam);
+
+$("shoot").addEventListener("click", async () => {
+  if (!camStream) return;
+  const track = camStream.getVideoTracks()[0];
+  const v = $("camVideo");
+  let src;
+  try {
+    src = await new ImageCapture(track).takePhoto(); // tam çözünürlük
+  } catch {
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0);
+    src = c;
+  }
+  const crop = { aspect: v.videoWidth / v.videoHeight };
+  if (navigator.vibrate) navigator.vibrate(60);
+  closeCam();
+  runOcr(src, crop);
+});
+
+$("photo").addEventListener("change", e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (file) runOcr(file);
+});
+
+function saveIngredients(text) {
+  if (!WORKER_URL || !pending.code) return;
+  fetch(WORKER_URL + "/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      code: pending.code,
+      name: pending.product_name_tr || pending.product_name || "",
+      brand: pending.brands || "",
+      ingredients: text,
+      nutriscore: pending.nutriscore_grade || "",
+      nova: pending.nova_group || 0,
+      nutriments: pending.nutriments || null
+    })
+  }).catch(() => {});
+}
+
+$("ocrScore").addEventListener("click", () => {
+  const text = $("ocrText").value.trim();
+  if (!text) return;
+  $("status").textContent = "";
+  showResult({ ...pending, source: "foto" }, text);
+  saveIngredients(text);
+});
+
+// Hızlı açılış:
+//   ?code=8690000000000  -> o barkodu direkt puanlar (paylaşılabilir link)
+//   ?scan=1              -> uygulama açılır açılmaz kamerayı başlatır
+const params = new URLSearchParams(location.search);
+const startCode = (params.get("code") || "").replace(/\D/g, "");
+if (startCode) {
+  $("code").value = startCode;
+  lookup(startCode);
+} else if (params.get("scan") === "1") {
+  $("scan").click();
+}
+
+// Eski sürümlerin önbellekte kalmaması için service worker ve önbelleği temizle
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+}
+if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
+</script>
+</body>
+  </html>
