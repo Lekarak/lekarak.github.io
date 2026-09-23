@@ -68,23 +68,28 @@
     position: fixed; inset: 0; z-index: 40; margin: 0; border: 0; border-radius: 0; min-height: 0;
   }
   body.scanning #reader video { height: 100% !important; object-fit: cover; }
+  body.scanning #reader__scan_region { min-height: 100vh; display: grid; place-items: center; }
+  body.scanning #reader__dashboard { display: none !important; }
+  body.scanning #reader img { display: none; }
   #reader:fullscreen { width: 100vw !important; height: 100vh !important; }
   #scanUI {
     position: fixed; inset: 0; z-index: 41; display: flex; flex-direction: column;
-    justify-content: space-between; padding: 16px; pointer-events: none;
+    justify-content: space-between; pointer-events: none;
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
   }
   #scanUI[hidden] { display: none; }
   #scanUI > * { pointer-events: auto; }
   .scanTop { display: flex; justify-content: flex-end; }
   .scanBottom {
-    background: rgba(20, 32, 26, 0.9); color: var(--paper); backdrop-filter: blur(8px);
+    background: rgba(20, 32, 26, 0.72); color: var(--paper);
     border-radius: 18px; padding: 14px 16px; display: grid; gap: 12px;
-    max-height: 45vh; overflow: auto;
+    max-height: 28vh; overflow: auto;
   }
   .scanBottom label { display: grid; gap: 4px; }
   .scanBottom #status { margin: 0; color: var(--paper); font-size: 0.95rem; }
   .scanRow { display: flex; align-items: center; gap: 12px; }
-  .scanRow label { flex: 1; font-size: 0.85rem; color: #C9D3CA; }
+  .scanRow label { flex: 1; font-size: 0.8rem; color: #C9D3CA; }
+  .scanBottom #status:empty { display: none; }
   #scanZoom, #frameSize { width: 100%; accent-color: var(--butter); }
   .frameRow { font-size: 0.85rem; color: #C9D3CA; }
   .roundBtn {
@@ -191,12 +196,12 @@
   <div id="reader"></div>
   <div id="scanUI" hidden>
     <div class="scanTop">
-      <button type="button" id="scanClose" class="roundBtn">Kapat</button>
+      <button type="button" id="scanClose" class="roundBtn" aria-label="Kamerayı kapat">✕ Kapat</button>
     </div>
     <div class="scanBottom">
       <div id="statusSlot"></div>
       <div class="scanRow">
-        <button type="button" id="torch" class="roundBtn">Işık</button>
+        <button type="button" id="torch" class="roundBtn">🔦 Işık</button>
         <label id="scanZoomWrap" hidden>Yakınlaştır<input type="range" id="scanZoom"></label>
       </div>
       <label class="frameRow">Okuma alanı<input type="range" id="frameSize" min="40" max="95" step="5"></label>
@@ -253,7 +258,7 @@
     </details>
   </section>
 
-  <p class="note">Puan Ray Peat kriterlerine dayanır. Bilimsel verilerden sadece Ray Peat'in yaklaşımıyla çelişmeyen, kanıtı güçlü riskler (trans yağ, işlenmiş et, ultra işlenmiş gıda) puanı düşürür. Nutri-Score, şeker, tuz ve doymuş yağ bilgi olarak gösterilir, puanı etkilemez. Puanlar tıbbi tavsiye değildir. Ürün bilgileri Open Food Facts'ten gelir. <span id="ver">sürüm 7</span></p>
+  <p class="note">Puan Ray Peat kriterlerine dayanır. Bilimsel verilerden sadece Ray Peat'in yaklaşımıyla çelişmeyen, kanıtı güçlü riskler (trans yağ, işlenmiş et, ultra işlenmiş gıda) puanı düşürür. Nutri-Score, şeker, tuz ve doymuş yağ bilgi olarak gösterilir, puanı etkilemez. Puanlar tıbbi tavsiye değildir. Ürün bilgileri Open Food Facts'ten gelir. <span id="ver">sürüm 8</span></p>
 </main>
 
 <script>
@@ -480,9 +485,7 @@ function openScanUI() {
   document.body.classList.add("scanning");
   fullScreenReader(true);
   $("scanUI").hidden = false;
-  // Kontroller kameranın içinde dursun ki tam ekranda da görünsünler
-  $("reader").appendChild($("scanUI"));
-  if ($("reader").requestFullscreen) $("reader").requestFullscreen().catch(() => {});
+  // Kontroller kamera katmanının üzerinde kalır; tarayıcının yerel tam ekranını açma.
   $("statusSlot").appendChild($("status"));   // durum yazısı kameranın üstünde görünsün
   let caps = {};
   try { caps = scanner.getRunningTrackCapabilities() || {}; } catch {}
@@ -501,8 +504,6 @@ function openScanUI() {
 
 function closeScanUI() {
   document.body.classList.remove("scanning");
-  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
-  if ($("scanUI").parentElement === $("reader")) document.body.appendChild($("scanUI"));
   fullScreenReader(false);
   $("scanUI").hidden = true;
   const st = $("status");
@@ -590,6 +591,7 @@ $("f").addEventListener("submit", e => {
 
 const SOURCES = {
   off: "Kaynak: Open Food Facts",
+  usda: "Kaynak: USDA FoodData Central",
   foto: "Kaynak: senin çektiğin fotoğraf",
   web: "Kaynak: internetten bulundu, içindekileri kontrol et"
 };
@@ -1129,4 +1131,4 @@ if ("serviceWorker" in navigator) {
 if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
 </script>
 </body>
-  </html>
+</html>
