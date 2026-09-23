@@ -54,6 +54,7 @@
     width: 100%; margin-top: 10px; background: var(--butter); color: var(--ink);
     font-size: 1.1rem; padding: 16px;
   }
+  #barcodePhotoBtn { width: 100%; margin-top: 8px; background: white; color: var(--ink); }
   #reader {
     display: none; width: 100%; min-height: 240px; margin-top: 12px;
     border: 2px solid var(--ink); border-radius: 14px; overflow: hidden; background: #000;
@@ -223,6 +224,8 @@
     <button type="submit">Puanla</button>
   </form>
   <button id="scan" type="button">📷 Kamerayla okut</button>
+  <button id="barcodePhotoBtn" type="button">📸 Barkodun fotoğrafını çek</button>
+  <input id="barcodePhoto" type="file" accept="image/*" capture="environment" hidden>
   <div id="reader"></div>
   <div id="scanUI" hidden>
     <div class="scanTop">
@@ -232,6 +235,7 @@
       <div id="statusSlot"></div>
       <div class="scanRow">
         <button type="button" id="torch" class="roundBtn">🔦 Işık</button>
+        <button type="button" id="scanPhotoBtn" class="roundBtn">📸 Fotoğrafla oku</button>
         <label id="scanZoomWrap" hidden>Yakınlaştır<input type="range" id="scanZoom"></label>
       </div>
       <label class="frameRow">Okuma alanı<input type="range" id="frameSize" min="40" max="95" step="5"></label>
@@ -601,6 +605,34 @@ function scienceExtras(p, ingredientsRaw) {
 const $ = id => document.getElementById(id);
 let scanner = null;
 let framePct = +(localStorage.getItem("framePct") || 70);
+
+$("barcodePhotoBtn").addEventListener("click", async () => {
+  if (scanner) await stopScanner();
+  $("barcodePhoto").click();
+});
+$("scanPhotoBtn").addEventListener("click", () => $("barcodePhotoBtn").click());
+$("barcodePhoto").addEventListener("change", async e => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file) return;
+  if (typeof Html5Qrcode === "undefined") { $("status").textContent = "Barkod okuyucu yüklenemedi. Sayfayı yenile."; return; }
+  await stopScanner();
+  $("status").textContent = "Fotoğraftaki barkod aranıyor…";
+  const F = Html5QrcodeSupportedFormats;
+  const reader = new Html5Qrcode("reader", { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E] });
+  $("reader").classList.add("on");
+  try {
+    const code = await reader.scanFile(file, false);
+    if (!/^\d{8,14}$/.test(code)) throw new Error("invalid barcode");
+    $("code").value = code;
+    await lookup(code);
+  } catch {
+    $("status").textContent = "Barkod okunamadı. Barkodun tamamı net görünecek şekilde yeniden çek veya numarayı elle yaz.";
+  } finally {
+    try { reader.clear(); } catch {}
+    $("reader").classList.remove("on");
+  }
+});
 
 function viewFinder(w, h) {
   const width = Math.round(Math.min(w, h * 1.6) * framePct / 100);
