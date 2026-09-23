@@ -1397,8 +1397,7 @@ async function useLiveText(text) {
   $("ocrScore").style.display = "block";
   $("ocr").style.display = "block";
   $("photoBtn").hidden = false;
-  showResult({ ...pending, source: "foto" }, text);
-  saveIngredients(text);
+$("result").style.display = "none";
 }
 
 let camStream = null;
