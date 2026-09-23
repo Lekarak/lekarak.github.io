@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Etiket Puanı</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1E2B22">
+<meta name="theme-color" content="#14201A">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,94 +13,138 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --ink: #1E2B22;
-    --paper: #FFFFFF;
-    --butter: #F6D55C;
-    --good: #2F7D3A;
-    --mid: #C98A12;
-    --bad: #B83227;
-    --line: #DCE3DD;
+    --ink: #14201A;          /* koyu yeşil-siyah: etiket mürekkebi */
+    --paper: #F7F5EF;        /* kağıt */
+    --card: #FFFFFF;
+    --butter: #F2C94C;       /* fiyat etiketi sarısı */
+    --carrot: #E4722B;       /* havuç */
+    --good: #1F6B45;
+    --mid: #B9741A;
+    --bad: #A63428;
+    --muted: #5C6B61;
+    --line: #E1E3D9;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--paper); color: var(--ink);
     font-family: "Bricolage Grotesque", system-ui, sans-serif;
     font-size: 17px; line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
   }
-  main { max-width: 480px; margin: 0 auto; padding: 28px 20px 48px; }
-  h1 { font-size: 2rem; font-weight: 800; line-height: 1.1; margin: 0 0 6px; }
-  .intro { margin: 0 0 24px; color: #4A5A4F; }
+  main { max-width: 480px; margin: 0 auto; padding: 20px 18px 56px; }
+
+  .brandbar { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .brandbar svg { display: block; }
+  .brandbar b { font-weight: 800; letter-spacing: -0.02em; font-size: 1.05rem; }
+
+  h1 { font-size: 2.1rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 8px; }
+  .intro { margin: 0 0 22px; color: var(--muted); max-width: 34em; }
+
   form { display: flex; gap: 8px; }
-  input {
-    flex: 1; font: inherit; font-size: 1.1rem; padding: 14px;
-    border: 2px solid var(--ink); border-radius: 10px; letter-spacing: 0.04em;
+  input, textarea {
+    font: inherit; border: 2px solid var(--ink); border-radius: 12px; background: var(--card);
   }
+  input { flex: 1; font-size: 1.1rem; padding: 14px; letter-spacing: 0.06em; }
   button {
-    font: inherit; font-weight: 600; padding: 14px 18px; border: 0;
-    border-radius: 10px; background: var(--ink); color: var(--butter); cursor: pointer;
+    font: inherit; font-weight: 700; padding: 14px 18px; border: 2px solid var(--ink);
+    border-radius: 12px; background: var(--ink); color: var(--butter); cursor: pointer;
   }
-  input:focus-visible, button:focus-visible { outline: 3px solid var(--butter); outline-offset: 2px; }
+  button:active { transform: translateY(1px); }
+  input:focus-visible, button:focus-visible, textarea:focus-visible {
+    outline: 3px solid var(--carrot); outline-offset: 2px;
+  }
   #scan {
     width: 100%; margin-top: 10px; background: var(--butter); color: var(--ink);
     font-size: 1.1rem; padding: 16px;
   }
-  #reader { display: none; width: 100%; min-height: 240px; margin-top: 12px; border-radius: 12px; overflow: hidden; background: #000; }
+
+  #reader { display: none; width: 100%; min-height: 240px; margin-top: 12px; border: 2px solid var(--ink); border-radius: 14px; overflow: hidden; background: #000; }
   #reader.on { display: block; }
   #reader video { width: 100% !important; display: block; }
-  #status { margin: 20px 0 0; min-height: 1.5em; }
-  #result { display: none; margin-top: 20px; }
-  .tag {
-    display: flex; align-items: center; gap: 18px;
-    padding: 18px; border-radius: 16px; background: var(--butter);
+  #status { margin: 18px 0 0; min-height: 1.5em; color: var(--muted); }
+
+  /* Sonuç: raf etiketi */
+  #result { display: none; margin-top: 22px; }
+  .head {
+    background: var(--ink); color: var(--paper);
+    padding: 16px 18px; border-radius: 14px 14px 0 0;
   }
-  .score {
-    font-size: 4.5rem; font-weight: 800; line-height: 1;
-    min-width: 2ch; text-align: center; color: var(--paper);
-    padding: 14px 12px; border-radius: 50%; aspect-ratio: 1;
-    display: grid; place-items: center;
-  }
-  .score small { display: block; font-size: 0.9rem; font-weight: 600; }
-  .name { font-weight: 600; font-size: 1.15rem; line-height: 1.25; }
-  .brand { color: #4A5A4F; font-size: 0.95rem; }
-  .source { font-size: 0.8rem; color: #4A5A4F; margin-top: 4px; }
+  .name { font-weight: 700; font-size: 1.2rem; line-height: 1.2; }
+  .brand, .source { color: #B7C2B8; font-size: 0.9rem; }
+  .source { margin-top: 6px; font-size: 0.78rem; }
   .source a { color: inherit; }
-  .head { padding: 18px; border-radius: 16px; background: var(--butter); }
-  .scores { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-  .card { border: 2px solid var(--ink); border-radius: 16px; padding: 14px 10px; text-align: center; }
-  .card .lbl { font-weight: 700; margin-bottom: 8px; }
-  .card .score { font-size: 2.8rem; width: 4.2rem; margin: 0 auto; padding: 10px; }
-  .card .sub { font-size: 0.8rem; color: #4A5A4F; margin-top: 8px; }
-  h3 { margin: 24px 0 0; font-size: 1.05rem; }
+
+  .scores {
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 1px;
+    background: var(--ink); border: 2px solid var(--ink); border-top: 0;
+    border-radius: 0 0 14px 14px; overflow: hidden;
+  }
+  .card { background: var(--card); padding: 16px 12px; text-align: center; }
+  .card .lbl { font-size: 0.85rem; color: var(--muted); }
+  .score {
+    font-weight: 800; letter-spacing: -0.05em; line-height: 0.9;
+    display: inline-grid; place-items: center; color: var(--card);
+  }
+  .card .score {
+    font-size: 3.6rem; width: 100%; padding: 10px 0 12px; border-radius: 10px; margin-top: 6px;
+  }
+  .score small { display: block; font-size: 0.85rem; font-weight: 700; letter-spacing: 0; opacity: 0.85; }
+  .card .sub { font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
   .grade { color: var(--ink) !important; }
-  .info { color: #6B7A70; font-weight: 600; font-size: 0.85rem; }
-  ul { list-style: none; padding: 0; margin: 8px 0 20px; }
-  li { padding: 10px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+
+  h3 { margin: 26px 0 0; font-size: 1.02rem; font-weight: 700; }
+  ul { list-style: none; padding: 0; margin: 6px 0 18px; }
+  li {
+    padding: 11px 0; border-bottom: 1px solid var(--line);
+    display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+  }
   .pts { font-weight: 800; white-space: nowrap; }
   .minus { color: var(--bad); }
   .plus { color: var(--good); }
-  details { margin-top: 8px; color: #4A5A4F; font-size: 0.95rem; }
-  summary { cursor: pointer; font-weight: 600; color: var(--ink); }
-  #ocr { display: none; margin-top: 16px; padding: 18px; border: 2px dashed var(--ink); border-radius: 16px; }
+  .info { color: var(--muted); font-weight: 700; font-size: 0.85rem; }
+  #alts li { cursor: pointer; }
+  #alts .pts { background: var(--good); color: #fff; border-radius: 999px; padding: 3px 11px; font-size: 0.9rem; }
+
+  details { margin-top: 10px; color: var(--muted); font-size: 0.95rem; }
+  summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+
+  #ocr {
+    display: none; margin-top: 16px; padding: 18px; background: var(--card);
+    border: 2px dashed var(--ink); border-radius: 14px;
+  }
   #ocr p { margin: 0 0 12px; }
   #photoBtn { width: 100%; background: var(--butter); color: var(--ink); }
   #ocrText {
-    display: none; width: 100%; margin-top: 12px; font: inherit; font-size: 0.95rem;
-    padding: 12px; border: 2px solid var(--ink); border-radius: 10px; resize: vertical;
+    display: none; width: 100%; margin-top: 12px; font-size: 0.95rem; padding: 12px; resize: vertical;
   }
-  #ocrScore { display: none; width: 100%; margin-top: 8px; }
-  #cam { position: relative; margin-top: 12px; border-radius: 12px; overflow: hidden; background: #000; }
+  #ocrScore { width: 100%; margin-top: 8px; display: none; }
+
+  #cam { position: relative; margin-top: 12px; border: 2px solid var(--ink); border-radius: 14px; overflow: hidden; background: #000; }
   #cam[hidden], #camControls[hidden] { display: none; }
   #camVideo { display: block; width: 100%; }
-  .frame { position: absolute; inset: 12% 8%; border: 3px solid var(--butter); border-radius: 10px; pointer-events: none; }
+  .frame { position: absolute; inset: 12% 8%; border: 3px solid var(--butter); border-radius: 8px; pointer-events: none; }
   #camControls { margin-top: 10px; }
-  #camControls label { display: block; font-size: 0.95rem; }
-  #zoom { width: 100%; }
+  #camControls label { display: block; font-size: 0.95rem; color: var(--muted); }
+  #zoom { width: 100%; accent-color: var(--carrot); }
   #shoot { width: 100%; margin-top: 8px; }
-  .note { margin-top: 28px; font-size: 0.85rem; color: #6B7A70; }
+
+  .note { margin-top: 30px; font-size: 0.83rem; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <main>
+  <div class="brandbar">
+    <svg width="30" height="30" viewBox="0 0 30 30" role="img" aria-label="Etiket Puanı">
+      <rect x="1" y="6" width="3" height="18" rx="1" fill="#14201A"/>
+      <rect x="6" y="6" width="2" height="18" rx="1" fill="#14201A"/>
+      <rect x="10" y="6" width="4" height="18" rx="1" fill="#14201A"/>
+      <rect x="16" y="6" width="2" height="18" rx="1" fill="#14201A"/>
+      <path d="M23.5 26 L20.5 13 h6 Z" fill="#E4722B"/>
+      <path d="M23.5 13 V8 M23.5 10 l3-2 M23.5 10 l-3-2" stroke="#1F6B45" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+    </svg>
+    <b>Etiket Puanı</b>
+  </div>
   <h1>Bu ürün kaç puan?</h1>
   <p class="intro">Barkod numarasını yaz, ürün Ray Peat kriterlerine göre 10 üzerinden puanlansın, bilimsel veriler de hesaba katılsın.</p>
 
@@ -151,6 +195,10 @@
     <ul id="reasons"></ul>
     <h3>Bilimsel verilerden</h3>
     <ul id="sciReasons"></ul>
+    <div id="altBox" hidden>
+      <h3>Daha iyi alternatifler</h3>
+      <ul id="alts"></ul>
+    </div>
     <details>
       <summary>İçindekiler</summary>
       <p id="ingredients"></p>
@@ -256,6 +304,12 @@ function scoreProduct(ingredientsRaw) {
 
   if (/(^|\s)un(u)?(\s|$)|nisasta|flour|starch/.test(first))
     add(-2, "İlk içerik un veya nişasta");
+  else if (has(text, ["nisasta", "bugday unu", "misir unu", "starch", "wheat flour", "maltodekstrin", "maltodextrin"]))
+    add(-2, "Nişasta / un içeriyor");
+
+  if (has(text, ["fosforik asit", "fosfat", "phosphoric acid", "phosphate", "e338", "e339", "e340",
+                 "e341", "e343", "e450", "e451", "e452"]))
+    add(-2, "Eklenmiş fosfat / fosforik asit");
 
   if (has(text, ["tereyağ", "hindistan cevizi yağı", "hindistancevizi yağı", "süt yağı", "butter", "coconut oil", "milk fat"]))
     add(1, "Tereyağı / hindistan cevizi / süt yağı");
@@ -263,6 +317,12 @@ function scoreProduct(ingredientsRaw) {
   if (has(first, ["süt", "peynir", "yumurta", "jelatin", "meyve", "portakal", "elma",
                   "milk", "cheese", "egg", "gelatin", "fruit", "orange"]))
     add(1, "Ana içerik süt, yumurta, jelatin veya meyve");
+
+  if (has(text, ["jelatin", "kolajen", "kollajen", "gelatin", "collagen", "glisin", "glycine"]))
+    add(1, "Jelatin / kolajen (glisin kaynağı)");
+
+  if (has(text, ["bal", "honey", "portakal suyu", "orange juice", "keçiboynuzu pekmezi", "pekmez"]))
+    add(1, "Bal, pekmez veya meyve suyu");
 
   return { score: Math.max(0, Math.min(10, score)), reasons };
 }
@@ -322,6 +382,7 @@ async function stopScanner() {
   }
   $("scan").textContent = "📷 Kamerayla okut";
   $("reader").classList.remove("on");
+  if (liveTimer) stopLive();
 }
 
 $("scan").addEventListener("click", async () => {
@@ -350,12 +411,12 @@ $("scan").addEventListener("click", async () => {
         if (done) return;
         done = true;
         if (navigator.vibrate) navigator.vibrate(80);
-        await stopScanner();
         $("code").value = text;
-        lookup(text);
+        lookup(text, true); // kamera açık kalsın, içindekiler canlı okunabilsin
       }
     );
-    if (!done) $("status").textContent = "Barkodu sarı çerçevenin içine tut.";
+    if (!done) $("status").textContent = "Kamerayı ürünün üzerinde gezdir: barkodu ve içindekileri birlikte okuyorum.";
+    startLive();
   } catch {
     await stopScanner();
     $("status").textContent = "Kameraya erişilemedi. Tarayıcı kamera izni istediğinde İzin ver'e bas.";
@@ -374,9 +435,10 @@ const SOURCES = {
   web: "Kaynak: internetten bulundu, içindekileri kontrol et"
 };
 
-async function lookup(raw) {
+async function lookup(raw, keepCam) {
   const code = String(raw).replace(/\D/g, "");
   if (!code) return;
+  if (!keepCam) { stopLive(); await stopScanner(); }
   closeCam();
   $("result").style.display = "none";
   $("status").textContent = "Ürün aranıyor…";
@@ -391,8 +453,8 @@ async function lookup(raw) {
       clearTimeout(slow);
       if (!res.ok) throw new Error();
       const p = { code, product_name: d.name, brands: d.brand, source: d.source, url: d.url,
-                  nutriscore_grade: d.nutriscore, nova_group: d.nova, nutriments: d.nutriments };
-      if (d.found) { showResult(p, d.ingredients); return; }
+                  nutriscore_grade: d.nutriscore, nova_group: d.nova, nutriments: d.nutriments, tags: d.tags || "" };
+      if (d.found) { stopLive(); await stopScanner(); showResult(p, d.ingredients); return; }
       askPhoto(d.limit
         ? "Bugünkü internet araması sınırı doldu. İçindekilerin fotoğrafını çekerek puanlayabilirsin."
         : "Bu ürünün içindekilerini hiçbir yerde bulamadım. Fotoğrafını çek, bir kere okutman yeterli, sonra hep hatırlanacak.", p);
@@ -405,19 +467,23 @@ async function lookup(raw) {
 
   try {
     const res = await fetch("https://world.openfoodfacts.org/api/v2/product/" + code +
-      ".json?fields=product_name,product_name_tr,brands,ingredients_text_tr,ingredients_text,ingredients_text_en,ingredients,nutriscore_grade,nova_group,nutriments");
+      ".json?fields=product_name,product_name_tr,brands,ingredients_text_tr,ingredients_text,ingredients_text_en,ingredients,ingredients_tags,additives_tags,nutriscore_grade,nova_group,nutriments");
     const data = await res.json();
     if (data.status !== 1) {
       askPhoto("Bu barkod Open Food Facts'te kayıtlı değil. İçindekilerin fotoğrafını çekerek puanlayabilirsin.", { code });
       return;
     }
     const p = { ...data.product, code, source: "off" };
+    p.tags = [].concat(p.ingredients_tags || [], p.additives_tags || [])
+      .filter(t => typeof t === "string" && !/(oil-and-fat|and-fat$)/.test(t))
+      .map(t => t.replace(/^[a-z]{2}:/, "").replace(/-/g, " ")).join(", ");
     const ing = p.ingredients_text_tr || p.ingredients_text_en || p.ingredients_text ||
       (p.ingredients || []).map(i => i.text).filter(Boolean).join(", ");
     if (!ing) {
       askPhoto("Bu ürünün içindekiler bilgisi eksik. Paketin arkasındaki içindekiler kısmının fotoğrafını çek.", p);
       return;
     }
+    stopLive(); await stopScanner();
     showResult(p, ing);
   } catch {
     $("status").textContent = "Bağlantı kurulamadı. İnternetini kontrol edip tekrar dene.";
@@ -426,8 +492,10 @@ async function lookup(raw) {
 
 function showResult(p, ing) {
     $("ocr").style.display = "none";
-    const { score, reasons } = scoreProduct(ing);
-    const sci = scienceExtras(p, ing);
+    // Etiket dili ne olursa olsun, Open Food Facts'in İngilizce içerik etiketleri de puanlamaya katılır
+    const scoreText = ing + (p.tags ? ", " + p.tags : "");
+    const { score, reasons } = scoreProduct(scoreText);
+    const sci = scienceExtras(p, scoreText);
     const total = Math.max(0, Math.min(10, score + sci.penalties.reduce((t, r) => t + r.pts, 0)));
     const el = $("score");
     el.innerHTML = total + "<small>/10</small>";
@@ -458,13 +526,56 @@ function showResult(p, ing) {
     $("ingredients").textContent = ing;
     $("status").textContent = "";
     $("result").style.display = "block";
+    reportScore(p.code, total);
+    loadAlternatives(p.code, total);
 }
+
+// Puanı sunucuya bildir: herkesin taraması ortak alternatif listesini besler
+function reportScore(code, score) {
+  if (!WORKER_URL || !code) return;
+  fetch(WORKER_URL + "/score", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code, score })
+  }).catch(() => {});
+}
+
+async function loadAlternatives(code, score) {
+  const box = $("altBox");
+  box.hidden = true;
+  if (!WORKER_URL || !code || score >= 8) return;
+  try {
+    const res = await fetch(WORKER_URL + "/alternatives?code=" + code);
+    const d = await res.json();
+    if (!d.items || !d.items.length) return;
+    $("alts").innerHTML = d.items.map(it => {
+      const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const title = esc(it.name || it.code) + (it.brand ? " · " + esc(it.brand) : "");
+      return `<li data-code="${esc(it.code)}"><span>${title}</span><span class="pts">${it.score}/10</span></li>`;
+    }).join("");
+    box.hidden = false;
+  } catch {}
+}
+
+$("alts").addEventListener("click", e => {
+  const li = e.target.closest("li[data-code]");
+  if (!li) return;
+  $("code").value = li.dataset.code;
+  lookup(li.dataset.code);
+});
 
 // ---- Fotoğraftan okuma ----
 let pending = {};
 
 function askPhoto(msg, product) {
   pending = product || {};
+  if (liveText) { useLiveText(liveText); return; }       // kamerayla zaten okumuşuz
+  if (scanner && liveTimer) {                            // kamera açık: canlı okumayı beklemeye al
+    wantIngredients = true;
+    liveTries = 0;
+    $("status").textContent = "Ürünün içindekiler yazısını kameraya yaklaştır ve sabit tut, kendim okuyacağım.";
+    return;
+  }
   $("status").textContent = msg;
   $("ocrText").style.display = "none";
   $("ocrScore").style.display = "none";
@@ -573,7 +684,7 @@ async function runOcr(src, crop) {
       });
       raw = data.text;
     }
-    const text = raw.replace(/-\s*\n\s*/g, "").replace(/\s+/g, " ").trim();
+    const text = cleanIngredients(raw);
     if (text.length < 5) {
       $("status").textContent = "Yazı okunamadı. Yakınlaştırıp içindekiler kısmını çerçeveye sığdır ve tekrar çek.";
       return;
@@ -587,6 +698,146 @@ async function runOcr(src, crop) {
   } finally {
     $("photoBtn").disabled = false;
   }
+}
+
+// ---- Canlı içerik okuma ----
+// Barkod taranırken aynı kameradan kareler alınır; görüntü sabitlendiğinde yazı okunur.
+let liveTimer = null, liveBusy = false, lastSig = null, liveTries = 0, lastReading = "";
+let liveText = "";        // barkoddan önce yakalanan içindekiler metni
+let wantIngredients = false; // ürün bulunamadı, içindekiler bekleniyor
+
+function liveVideo() { return document.querySelector("#reader video"); }
+
+function frameSignature(v) {
+  const c = document.createElement("canvas");
+  c.width = 32; c.height = 32;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(v, 0, 0, 32, 32);
+  const d = ctx.getImageData(0, 0, 32, 32).data;
+  const out = [];
+  for (let i = 0; i < d.length; i += 4) out.push((d[i] + d[i + 1] + d[i + 2]) / 3);
+  return out;
+}
+
+function frameDiff(a, b) {
+  let t = 0;
+  for (let i = 0; i < a.length; i++) t += Math.abs(a[i] - b[i]);
+  return t / a.length;
+}
+
+// Okunan metni temizle: başlıktan başla, besin tablosu ve saklama bilgisinde kes, saçma kelimeleri at
+const STOP_WORDS = /(besin de[gğ]erleri|enerji ve besin|ortalama besin|alerjen|nutrition|net a[gğ][iı]rl[iı]k|son t[uü]ketim|tavsiye edilen|saklama|[uü]retici|ithalat|men[sş]ei|www\.|t\.c\.|helal|barkod)/;
+const FOOD_WORDS = ["su", "seker", "tuz", "sut", "un", "yag", "nisasta", "aroma", "asit", "protein",
+  "emulgator", "kakao", "bugday", "misir", "pirinc", "maya", "vitamin", "baharat", "sirke", "surup",
+  "bitkisel", "peynir", "yumurta", "et", "meyve", "sebze", "koruyucu", "tatlandirici", "lesitin",
+  "sugar", "salt", "water", "milk", "flour", "oil", "starch", "acid", "flavour", "flavor"];
+
+function cleanIngredients(raw) {
+  let t = raw.replace(/-\s*\n\s*/g, "").replace(/\s+/g, " ").trim();
+  // Harf harf eşleşen küçük harfli kopya (Türkçe İ dahil), konumlar aslıyla aynı kalsın
+  const low = t => t.replace(/İ/g, "i").replace(/I/g, "ı").toLowerCase()
+    .replace(/ı/g, "i").replace(/ç/g, "c").replace(/ğ/g, "g")
+    .replace(/ö/g, "o").replace(/ş/g, "s").replace(/ü/g, "u");
+  // "İçindekiler" başlığı varsa oradan başla
+  const m = /icindekiler|ingredients|ingredients/.exec(low(t));
+  if (m) t = t.slice(m.index + m[0].length).replace(/^\s*[:.\-]\s*/, "");
+  // besin tablosu / saklama bilgisi başlayınca kes
+  const stop = STOP_WORDS.exec(low(t));
+  if (stop && stop.index > 20) t = t.slice(0, stop.index);
+  // anlamsız parçaları at: sesli harfi olmayan ya da tek harflik kelimeler
+  t = t.split(/(\s*[,;.]\s*)/).map(part => {
+    if (/^[\s,;.]*$/.test(part)) return part;
+    const words = part.split(/\s+/).filter(w => {
+      const n = norm(w).replace(/[^a-z0-9%]/g, "");
+      if (!n) return false;
+      if (/^e\d{3}/.test(n) || /\d/.test(n)) return true;      // E kodları ve yüzdeler kalsın
+      return n.length >= 2 && /[aeiou]/.test(n);                // sesli harfi olmayan çöpü at
+    });
+    return words.join(" ");
+  }).join("");
+  return t.replace(/\s*,\s*,+/g, ", ").replace(/\s+/g, " ").replace(/^[\s,;.]+|[\s,;.]+$/g, "").trim();
+}
+
+// Metin gerçekten bir içindekiler listesine benziyor mu?
+function looksLikeIngredients(t) {
+  const n = norm(t);
+  if (n.length < 40) return false;
+  const letters = (n.match(/[a-z]/g) || []).length;
+  if (letters / n.length < 0.6) return false;                   // çoğu rakam/sembolse listesi değildir
+  const hits = FOOD_WORDS.filter(w => new RegExp("(^| )" + w).test(n)).length;
+  const commas = (n.match(/,/g) || []).length;
+  return hits >= 2 && (commas >= 2 || /icindekiler|ingredients/.test(n));
+}
+
+// İki ayrı karede aynı kelimeler çıktıysa okuma güvenilirdir
+function sameReading(a, b) {
+  const set = t => new Set(norm(t).split(/[^a-z0-9]+/).filter(w => w.length >= 4));
+  const A = set(a), B = set(b);
+  if (A.size < 4 || B.size < 4) return false;
+  let common = 0;
+  A.forEach(w => { if (B.has(w)) common++; });
+  return common / Math.min(A.size, B.size) >= 0.6;
+}
+
+function startLive() {
+  if (!OCR_SPACE_KEY || liveTimer) return;
+  liveTries = 0; lastSig = null; liveText = ""; lastReading = ""; wantIngredients = false;
+  liveTimer = setInterval(liveTick, 1200);
+}
+
+function stopLive() {
+  clearInterval(liveTimer);
+  liveTimer = null;
+  liveBusy = false;
+  wantIngredients = false;
+}
+
+async function liveTick() {
+  const v = liveVideo();
+  if (!v || !v.videoWidth || liveBusy || liveTries >= 10) return;
+  const sig = frameSignature(v);
+  if (!lastSig || frameDiff(lastSig, sig) > 5) { lastSig = sig; return; } // elin oynuyorsa bekle
+  lastSig = sig;
+
+  liveBusy = true;
+  liveTries++;
+  try {
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0);
+    const text = cleanIngredients(await cloudOcr(c));
+    if (looksLikeIngredients(text)) {
+      if (lastReading && sameReading(lastReading, text)) {
+        const best = text.length >= lastReading.length ? text : lastReading;
+        if (wantIngredients) { useLiveText(best); return; }
+        if (best.length > liveText.length) liveText = best;
+      } else {
+        lastReading = text;
+        $("status").textContent = "Okudum, doğrulamak için biraz daha sabit tut…";
+      }
+    }
+  } catch {}
+  liveBusy = false;
+
+  if (liveTries >= 10 && wantIngredients) {
+    stopLive();
+    await stopScanner();
+    askPhoto("Yazıyı okuyamadım. İçindekilerin fotoğrafını çekelim.", pending);
+  }
+}
+
+async function useLiveText(text) {
+  stopLive();
+  await stopScanner();
+  if (navigator.vibrate) navigator.vibrate(60);
+  $("status").textContent = "Yanlış okunan kelime varsa düzelt, sonra puanla.";
+  $("ocrText").value = text;
+  $("ocrText").style.display = "block";
+  $("ocrScore").style.display = "block";
+  $("ocr").style.display = "block";
+  $("photoBtn").hidden = false;
+  showResult({ ...pending, source: "foto" }, text);
+  saveIngredients(text);
 }
 
 // Sayfa içi kamera: aç, çek, otomatik kapat
@@ -666,27 +917,42 @@ $("photo").addEventListener("change", e => {
   if (file) runOcr(file);
 });
 
+function saveIngredients(text) {
+  if (!WORKER_URL || !pending.code) return;
+  fetch(WORKER_URL + "/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      code: pending.code,
+      name: pending.product_name_tr || pending.product_name || "",
+      brand: pending.brands || "",
+      ingredients: text,
+      nutriscore: pending.nutriscore_grade || "",
+      nova: pending.nova_group || 0,
+      nutriments: pending.nutriments || null
+    })
+  }).catch(() => {});
+}
+
 $("ocrScore").addEventListener("click", () => {
   const text = $("ocrText").value.trim();
   if (!text) return;
   $("status").textContent = "";
   showResult({ ...pending, source: "foto" }, text);
-  if (WORKER_URL && pending.code) {
-    fetch(WORKER_URL + "/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: pending.code,
-        name: pending.product_name_tr || pending.product_name || "",
-        brand: pending.brands || "",
-        ingredients: text,
-        nutriscore: pending.nutriscore_grade || "",
-        nova: pending.nova_group || 0,
-        nutriments: pending.nutriments || null
-      })
-    }).catch(() => {});
-  }
+  saveIngredients(text);
 });
+
+// Hızlı açılış:
+//   ?code=8690000000000  -> o barkodu direkt puanlar (paylaşılabilir link)
+//   ?scan=1              -> uygulama açılır açılmaz kamerayı başlatır
+const params = new URLSearchParams(location.search);
+const startCode = (params.get("code") || "").replace(/\D/g, "");
+if (startCode) {
+  $("code").value = startCode;
+  lookup(startCode);
+} else if (params.get("scan") === "1") {
+  $("scan").click();
+}
 
 // Eski sürümlerin önbellekte kalmaması için service worker ve önbelleği temizle
 if ("serviceWorker" in navigator) {
