@@ -76,9 +76,11 @@
   #scanUI > * { pointer-events: auto; }
   .scanTop { display: flex; justify-content: flex-end; }
   .scanBottom {
-    background: rgba(20, 32, 26, 0.86); color: var(--paper); backdrop-filter: blur(6px);
-    border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px;
+    background: rgba(20, 32, 26, 0.9); color: var(--paper); backdrop-filter: blur(8px);
+    border-radius: 18px; padding: 14px 16px; display: grid; gap: 12px;
+    max-height: 45vh; overflow: auto;
   }
+  .scanBottom label { display: grid; gap: 4px; }
   .scanBottom #status { margin: 0; color: var(--paper); font-size: 0.95rem; }
   .scanRow { display: flex; align-items: center; gap: 12px; }
   .scanRow label { flex: 1; font-size: 0.85rem; color: #C9D3CA; }
@@ -454,8 +456,28 @@ function viewFinder(w, h) {
 }
 
 // Tam ekran kamera kaplaması
+function fullScreenReader(on) {
+  const r = $("reader");
+  if (!on) { r.removeAttribute("style"); return; }
+  const css = {
+    position: "fixed", top: "0", left: "0", right: "0", bottom: "0",
+    width: "100%", height: "100%", "max-width": "none", margin: "0",
+    border: "0", "border-radius": "0", "z-index": "40", background: "#000"
+  };
+  for (const k in css) r.style.setProperty(k, css[k], "important");
+  const fit = () => {
+    const v = r.querySelector("video");
+    if (!v) return;
+    v.style.setProperty("width", "100%", "important");
+    v.style.setProperty("height", "100%", "important");
+    v.style.setProperty("object-fit", "cover", "important");
+  };
+  fit(); setTimeout(fit, 300); setTimeout(fit, 1000);
+}
+
 function openScanUI() {
   document.body.classList.add("scanning");
+  fullScreenReader(true);
   $("scanUI").hidden = false;
   $("statusSlot").appendChild($("status"));   // durum yazısı kameranın üstünde görünsün
   let caps = {};
@@ -475,6 +497,7 @@ function openScanUI() {
 
 function closeScanUI() {
   document.body.classList.remove("scanning");
+  fullScreenReader(false);
   $("scanUI").hidden = true;
   const st = $("status");
   if (st.parentElement === $("statusSlot")) $("scanUI").insertAdjacentElement("afterend", st);
@@ -1100,4 +1123,4 @@ if ("serviceWorker" in navigator) {
 if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
 </script>
 </body>
-  </html>
+</html>
