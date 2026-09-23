@@ -172,6 +172,15 @@
   #camControls label { display: block; font-size: 0.95rem; color: var(--muted); }
   #zoom { width: 100%; accent-color: var(--carrot); }
   #shoot { width: 100%; margin-top: 8px; }
+  .suggestBox { margin: 24px 0; padding: 20px; background: #EAF0E7; border: 1px solid #CDDCCB; border-radius: 20px; }
+  .suggestBox h2 { margin: 0 0 7px; font-size: 1.35rem; }
+  .suggestBox p { margin: 0 0 12px; color: var(--muted); font-size: .92rem; }
+  .suggestBox select, .suggestBox input { width: 100%; padding: 12px; border-radius: 11px; border: 1px solid #B8C9B8; margin-bottom: 9px; background: white; }
+  .suggestBox button { width: 100%; }
+  .suggestList { list-style: none; padding: 0; margin: 12px 0 0; }
+  .suggestList li { background: white; padding: 12px; border-radius: 12px; margin: 8px 0; border: 1px solid #DCE6DC; }
+  .suggestList button { width: auto; padding: 7px 11px; margin-top: 6px; font-size: .85rem; }
+  .suggestList small { display: block; color: var(--muted); }
   .note { margin-top: 30px; font-size: 0.83rem; color: var(--muted); }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -216,6 +225,21 @@
   </div>
 
   <p id="status" role="status"></p>
+
+  <section class="suggestBox" aria-labelledby="suggestTitle">
+    <h2 id="suggestTitle">Ne tüketsem?</h2>
+    <p>Durumunu seç veya kısaca yaz. Öneriler gerçek ürün etiketlerinden gelir; mağazada bulunurluğu garanti değildir.</p>
+    <select id="intent" aria-label="Durum seç">
+      <option value="sport">Spora gidiyorum (kısa egzersiz)</option>
+      <option value="study">Ders çalışacağım</option>
+      <option value="less-sugar">Şekeri azaltmak istiyorum</option>
+      <option value="snack">Atıştırmalık arıyorum</option>
+    </select>
+    <input id="intentText" type="text" maxlength="120" placeholder="Örn. Spora gidiyorum, içecek arıyorum" aria-label="Durumunu yaz">
+    <button id="suggestBtn" type="button">Seçenekleri göster</button>
+    <p id="suggestStatus" role="status"></p>
+    <ul id="suggestList" class="suggestList"></ul>
+  </section>
 
   <section id="ocr">
     <p>İçindekiler kısmının fotoğrafını çek, yazıyı okuyup puanlayayım.</p>
@@ -756,7 +780,7 @@ async function lookup(raw, keepCam) {
         tags: d.tags || ""
       };
 
-      if (d.found) {
+      if (d.found && typeof d.ingredients === "string" && d.ingredients.trim().length >= 10) {
         stopLive();
         await stopScanner();
         showResult(p, d.ingredients);
@@ -766,7 +790,7 @@ async function lookup(raw, keepCam) {
       askPhoto(
         d.limit
           ? "Bugünkü internet araması sınırı doldu. İçindekilerin fotoğrafını çekerek puanlayabilirsin."
-          : "Bu ürünün içindekilerini hiçbir yerde bulamadım. Fotoğrafını çek, bir kere okutman yeterli, sonra hep hatırlanacak.",
+          : "Bu ürünün içindekilerini hiçbir yerde bulamadım. İçindekilerin fotoğrafını çek; metni kontrol edip onayladıktan sonra puanlayabilirsin.",
         p
       );
       return;
@@ -945,30 +969,51 @@ async function loadAlternatives(code, score) {
   const box = $("altBox");
   box.hidden = true;
   if (!WORKER_URL || !code || score >= 8) return;
-
   try {
-    const res = await fetch(
-      WORKER_URL + "/alternatives?code=" + code
-    );
+    const res = await fetch(WORKER_URL + "/alternatives?code=" + encodeURIComponent(code));
+    if (!res.ok) return;
     const d = await res.json();
-    if (!d.items || !d.items.length) return;
-
-    $("alts").innerHTML = d.items.map(it => {
-      const esc = t => String(t || "").replace(/[&<>"]/g, c => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;"
-      }[c]));
-      const title = esc(it.name || it.code) +
-        (it.brand ? " · " + esc(it.brand) : "");
-      return `<li data-code="${esc(it.code)}"><span>${title}</span>` +
-        `<span class="pts">${it.score}/10</span></li>`;
-    }).join("");
-
+    if (!Array.isArray(d.items) || !d.items.length) return;
+    const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    $("altBox").querySelector("h3").textContent = "Şekeri daha az olan seçenekler";
+    $("alts").innerHTML = d.items.map(it =>
+      `<li data-code="${esc(it.code)}"><span>${esc(it.name)} · ${esc(it.category)}<small>${esc(it.sugar)} g/100 g veya ml şeker · ${esc(it.source)}</small></span><span class="pts">Bak</span></li>`
+    ).join("");
     box.hidden = false;
   } catch {}
 }
+
+$("suggestBtn").addEventListener("click", async () => {
+  const raw = norm($("intentText").value || "");
+  const intent = /spor|antrenman|egzersiz/.test(raw) ? "sport" :
+    /ders|calis|uyanik/.test(raw) ? "study" :
+    /seker|tatli/.test(raw) ? "less-sugar" :
+    /atistir|aciktim|kraker/.test(raw) ? "snack" : $("intent").value;
+  $("suggestList").innerHTML = "";
+  $("suggestStatus").textContent = "Ürünler aranıyor…";
+  $("suggestBtn").disabled = true;
+  try {
+    const res = await fetch(WORKER_URL + "/suggest?intent=" + encodeURIComponent(intent));
+    if (!res.ok) throw new Error("suggest");
+    const d = await res.json();
+    if (!Array.isArray(d.items) || !d.items.length) {
+      $("suggestStatus").textContent = "Bu durumda yeterli doğrulanabilir ürün bulunamadı. Başka bir durum dene.";
+      return;
+    }
+    $("suggestStatus").textContent = intent === "sport" ?
+      "Kısa egzersizde su genellikle iyi bir başlangıçtır. Uzun/yoğun egzersizde ihtiyaç değişebilir. Ürünler şeker verisine göre listelenmiştir." :
+      "Ürünler bildirilen şeker miktarına göre listelendi. Şeker miktarı tek başına genel sağlık puanı değildir.";
+    d.items.forEach(it => {
+      const li = document.createElement("li");
+      const strong = document.createElement("strong"); strong.textContent = it.name + (it.brand ? " · " + it.brand : "");
+      const small = document.createElement("small"); small.textContent = it.category + " · Şeker: " + it.sugar + " g/100 g veya ml · Kaynak: Open Food Facts";
+      const button = document.createElement("button"); button.type = "button"; button.textContent = "Ürünü incele";
+      button.addEventListener("click", () => { $("code").value = it.code; lookup(it.code); $("result").scrollIntoView({ behavior: "smooth" }); });
+      li.append(strong, small, button); $("suggestList").append(li);
+    });
+  } catch { $("suggestStatus").textContent = "Öneriler yüklenemedi. Bağlantıyı kontrol edip tekrar dene."; }
+  finally { $("suggestBtn").disabled = false; }
+});
 
 $("alts").addEventListener("click", e => {
   const li = e.target.closest("li[data-code]");
@@ -1397,7 +1442,7 @@ async function useLiveText(text) {
   $("ocrScore").style.display = "block";
   $("ocr").style.display = "block";
   $("photoBtn").hidden = false;
-$("result").style.display = "none";
+  $("result").style.display = "none";
 }
 
 let camStream = null;
@@ -1509,7 +1554,7 @@ $("photo").addEventListener("change", e => {
 });
 
 function saveIngredients(text) {
-  if (!WORKER_URL || !pending.code) return;
+  if (!WORKER_URL || !pending.code || text.trim().length < 10) return;
   fetch(WORKER_URL + "/save", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1530,7 +1575,10 @@ function saveIngredients(text) {
 
 $("ocrScore").addEventListener("click", () => {
   const text = $("ocrText").value.trim();
-  if (!text) return;
+  if (text.length < 10) {
+    $("status").textContent = "İçindekiler metni çok kısa. Kontrol edip tekrar dene.";
+    return;
+  }
   $("status").textContent = "";
   showResult({ ...pending, source: "foto" }, text);
   saveIngredients(text);
