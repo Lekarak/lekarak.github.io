@@ -61,6 +61,34 @@
   #reader { display: none; width: 100%; min-height: 240px; margin-top: 12px; border: 2px solid var(--ink); border-radius: 14px; overflow: hidden; background: #000; }
   #reader.on { display: block; }
   #reader video { width: 100% !important; display: block; }
+
+  /* Tarama sırasında kamera tüm ekranı kaplar */
+  body.scanning { overflow: hidden; }
+  body.scanning #reader {
+    position: fixed; inset: 0; z-index: 40; margin: 0; border: 0; border-radius: 0; min-height: 0;
+  }
+  body.scanning #reader video { height: 100% !important; object-fit: cover; }
+  #scanUI {
+    position: fixed; inset: 0; z-index: 41; display: flex; flex-direction: column;
+    justify-content: space-between; padding: 16px; pointer-events: none;
+  }
+  #scanUI[hidden] { display: none; }
+  #scanUI > * { pointer-events: auto; }
+  .scanTop { display: flex; justify-content: flex-end; }
+  .scanBottom {
+    background: rgba(20, 32, 26, 0.86); color: var(--paper); backdrop-filter: blur(6px);
+    border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px;
+  }
+  .scanBottom #status { margin: 0; color: var(--paper); font-size: 0.95rem; }
+  .scanRow { display: flex; align-items: center; gap: 12px; }
+  .scanRow label { flex: 1; font-size: 0.85rem; color: #C9D3CA; }
+  #scanZoom, #frameSize { width: 100%; accent-color: var(--butter); }
+  .frameRow { font-size: 0.85rem; color: #C9D3CA; }
+  .roundBtn {
+    background: rgba(20, 32, 26, 0.86); color: var(--paper); border: 0;
+    border-radius: 999px; padding: 10px 16px; font-weight: 700;
+  }
+  #torch.on { background: var(--butter); color: var(--ink); }
   #status { margin: 18px 0 0; min-height: 1.5em; color: var(--muted); }
 
   /* Sonuç: raf etiketi */
@@ -102,6 +130,10 @@
   .minus { color: var(--bad); }
   .plus { color: var(--good); }
   .info { color: var(--muted); font-weight: 700; font-size: 0.85rem; }
+  li details { flex: 1; margin-top: 0; font-size: inherit; color: inherit; }
+  li summary { font-weight: 400; }
+  li details p { margin: 8px 0 2px; font-size: 0.88rem; color: var(--muted); }
+  li details a { color: var(--ink); }
   #alts li { cursor: pointer; }
   #alts .pts { background: var(--good); color: #fff; border-radius: 999px; padding: 3px 11px; font-size: 0.9rem; }
 
@@ -154,6 +186,19 @@
   </form>
   <button id="scan" type="button">📷 Kamerayla okut</button>
   <div id="reader"></div>
+  <div id="scanUI" hidden>
+    <div class="scanTop">
+      <button type="button" id="scanClose" class="roundBtn">Kapat</button>
+    </div>
+    <div class="scanBottom">
+      <div id="statusSlot"></div>
+      <div class="scanRow">
+        <button type="button" id="torch" class="roundBtn">Işık</button>
+        <label id="scanZoomWrap" hidden>Yakınlaştır<input type="range" id="scanZoom"></label>
+      </div>
+      <label class="frameRow">Okuma alanı<input type="range" id="frameSize" min="40" max="95" step="5"></label>
+    </div>
+  </div>
 
   <p id="status" role="status"></p>
 
@@ -255,6 +300,28 @@ function has(text, words) {
   });
 }
 
+// Her kuralın gerekçesi ve dogalmaxx.com'daki ilgili yazı
+const DOC = "https://dogalmaxx.com/articles/";
+const WHY = {
+  seed: ["Bu çerçevede çoklu doymamış yağlar tiroidi baskılar, kolayca oksitlenerek zehirli yıkım ürünleri oluşturur ve hücresel enerji üretimini bozar. Belirtileri düşük vücut ısısı, yavaş nabız ve yorgunluk olarak anlatılır.", "coklu-doymamis-yaglar-gerekli-mi-zehir-mi"],
+  omega: ["Balık yağı ve omega-3 kolayca oksitlenir; tiroidi ve bağışıklığı baskıladığı, dokularda akrolein gibi zehirli yıkım ürünleri ve yaşlılık pigmenti lipofuscin biriktirdiği savunulur.", "buyuk-balik-yagi-deneyi"],
+  palm: ["Aynı mantığın hafif hâli: palm yağının çoklu doymamış yağ oranı tohum yağlarından düşük olduğu için cezası da küçüktür.", "coklu-doymamis-yaglar-gerekli-mi-zehir-mi"],
+  nuts: ["Kuruyemiş ve tohumlar çoklu doymamış yağ taşır; aynı oksidasyon ve tiroid baskısı gerekçesiyle ceza alır.", "coklu-doymamis-yaglar-gerekli-mi-zehir-mi"],
+  soy: ["Soya hem çoklu doymamış yağ kaynağıdır hem de östrojeniktir. Östrojen burada kadınlık hormonu değil, hücrenin oksijenle enerji üretmesine karışan bir stres hormonu olarak ele alınır.", "ostrojen-peat-in-butun-sistemini-baglayan-hormon"],
+  starch: ["Asıl suçlunun şeker değil nişasta ve tohum yağları olduğu savunulur. Nişasta bağırsakta fermente olup endotoksin üretimini artırır; sonuçta şişkinlik, karaciğer yükü ve iltihap.", "fruktoz-seytanlastirilan-seker-gercekte-ne-yapiyor"],
+  phos: ["Kireçlenme dışarıdan dökülen kalsiyum değil; fosfat-PTH-kalsiyum dengesi ve patolojik mineralizasyonla iç içe bir süreçtir. Fazla fosfat bu dengeyi bozar.", "osteoartrit"],
+  gum: ["Zamklar sindirilmeden bağırsağa geçip fermantasyonu ve endotoksin emilimini artırır. Aynı eksende çiğ havuç, endotoksin ve östrojen geri emilimini azalttığı için önerilir.", "cig-havuc-bagirsak-ostrojen-ve-migren"],
+  sweet: ["Yapay tatlandırıcı, şekerin sağladığı hücresel yakıtı vermeden tatlı sinyali üretir. Bu çerçevede glikoz, stres hormonlarını azaltan ve tiroidi destekleyen bir yakıttır.", "seker-gercekten-sadece-bos-kalori-mi"],
+  iron: ["Demir, gerekli olduğu kadar kolayca zararlı hâle gelebilen reaktif bir metaldir; fazlası kırmızı hücreleri kırılganlaştırır ve demir-PUFA-lipofuscin zinciriyle doku yaşlanmasına katkı sayılır.", "demir-eksikligi-ve-demir-fazlaligi-anemi"],
+  fat: ["Hindistan cevizi yağı ve tereyağı, tohum yağlarının aksine metabolizmayı baskılamaz; tiroid işlevini destekler ve oksidasyonu yavaşlatır.", "hindistan-cevizi-yagi"],
+  base: ["Süt, yumurta, jelatin ve meyve bu çerçevenin temel gıdalarıdır: kolay yakılan yakıt ve mikrobesin kaynağı.", "glowup"],
+  gel: ["Sadece kas eti ağırlıklı beslenmek triptofan-sistein ağırlıklı bir profil yaratır; jelatin ve kolajendeki glisin-prolin dengesi tiroidi ve uykuyu destekleyen karşı kutuptur.", "aminoasitler-protein-dengesi-glisin-triptofan"],
+  sugarfuel: ["Bal, pekmez ve meyve suyu karaciğer glikojenini besler. Portakal suyu, hipoglisemide adrenalin ve kortizolü düşüren bir içecek olarak anlatılır.", "portakal-suyu-meselesi"],
+  trans: ["Trans yağın kalp hastalığı riskini artırdığı konusunda güçlü bilimsel uzlaşı var; bu, Ray Peat çerçevesiyle de çelişmiyor.", ""],
+  meat: ["Dünya Sağlık Örgütü işlenmiş eti kanserojen olarak sınıflandırıyor; nitritli ürünler bu yüzden ceza alıyor.", ""],
+  ultra: ["Ultra işlenmiş gıda tüketimi büyük gözlemsel çalışmalarda kötü sağlık sonuçlarıyla ilişkili bulundu.", ""]
+};
+
 function scoreProduct(ingredientsRaw) {
   let text = norm(ingredientsRaw);
   // Baştaki "İçindekiler:" başlığını ve öncesini at
@@ -265,27 +332,31 @@ function scoreProduct(ingredientsRaw) {
   const noCoconut = text.replace(/hindistan ?cevizi/g, "").replace(/coconut/g, "");
   let score = 10;
   const reasons = [];
-  const add = (pts, label) => { score += pts; reasons.push({ pts, label }); };
+  const add = (pts, label, key) => {
+    const w = WHY[key] || [];
+    score += pts;
+    reasons.push({ pts, label, why: w[0] || "", url: w[1] ? DOC + w[1] : "" });
+  };
 
   if (has(text, ["ayçiçek", "aycicek", "mısır yağı", "mısırözü yağı", "soya yağı", "kanola", "kolza",
                  "pamuk", "aspir", "bitkisel yağ", "sunflower", "corn oil", "soybean oil",
                  "rapeseed", "canola", "cottonseed", "safflower", "vegetable oil",
                  "tournesol", "colza", "huile vegetale", "sonnenblumen", "rapsol", "pflanzenol"]))
-    add(-5, "Tohum yağı içeriyor");
+    add(-5, "Tohum yağı içeriyor", "seed");
 
   if (has(noCoconut, ["balık yağı", "keten", "chia", "ceviz", "fish oil", "flax", "linseed", "walnut"]))
-    add(-3, "Omega-3 / PUFA kaynağı içeriyor");
+    add(-3, "Omega-3 / PUFA kaynağı içeriyor", "omega");
 
   if (has(text, ["palm yağı", "palm yagi", "palmiye yağı", "palm oil", "palm fat", "huile de palme", "palmol", "palmfett"]))
-    add(-2, "Palm yağı (orta düzeyde PUFA)");
+    add(-2, "Palm yağı (orta düzeyde PUFA)", "palm");
 
   if (has(text, ["fındık", "badem", "yer fıstığı", "fıstık", "kaju", "susam", "tahin", "ay çekirdeği",
                  "hazelnut", "almond", "peanut", "cashew", "sesame", "pistachio",
                  "noisette", "amande", "arachide", "haselnuss", "mandel", "erdnuss"]))
-    add(-2, "Kuruyemiş / tohum içeriyor (PUFA)");
+    add(-2, "Kuruyemiş / tohum içeriyor (PUFA)", "nuts");
 
   if (has(text, ["soya", "soja", "soy"]))
-    add(-2, "Soya içeriği var");
+    add(-2, "Soya içeriği var", "soy");
 
   const gums = [
     ["karragenan", "e407", "carrageenan"],
@@ -293,36 +364,36 @@ function scoreProduct(ingredientsRaw) {
     ["ksantan", "e415", "xanthan"],
     ["keçiboynuzu", "e410", "locust bean"]
   ].filter(g => has(text, g)).length;
-  if (gums > 0) add(-Math.min(gums, 3), "Kıvam artırıcı / zamk (" + gums + " adet)");
+  if (gums > 0) add(-Math.min(gums, 3), "Kıvam artırıcı / zamk (" + gums + " adet)", "gum");
 
   if (has(text, ["aspartam", "sukraloz", "asesülfam", "sakarin", "e950", "e951", "e954", "e955",
                  "sucralose", "acesulfame", "saccharin"]))
-    add(-2, "Yapay tatlandırıcı var");
+    add(-2, "Yapay tatlandırıcı var", "sweet");
 
   if (has(text, ["demir", "iron", "ferrous", "ferric"]))
-    add(-2, "Demirle zenginleştirilmiş");
+    add(-2, "Demirle zenginleştirilmiş", "iron");
 
   if (/(^|\s)un(u)?(\s|$)|nisasta|flour|starch/.test(first))
-    add(-2, "İlk içerik un veya nişasta");
+    add(-2, "İlk içerik un veya nişasta", "starch");
   else if (has(text, ["nisasta", "bugday unu", "misir unu", "starch", "wheat flour", "maltodekstrin", "maltodextrin"]))
-    add(-2, "Nişasta / un içeriyor");
+    add(-2, "Nişasta / un içeriyor", "starch");
 
   if (has(text, ["fosforik asit", "fosfat", "phosphoric acid", "phosphate", "e338", "e339", "e340",
                  "e341", "e343", "e450", "e451", "e452"]))
-    add(-2, "Eklenmiş fosfat / fosforik asit");
+    add(-2, "Eklenmiş fosfat / fosforik asit", "phos");
 
   if (has(text, ["tereyağ", "hindistan cevizi yağı", "hindistancevizi yağı", "süt yağı", "butter", "coconut oil", "milk fat"]))
-    add(1, "Tereyağı / hindistan cevizi / süt yağı");
+    add(1, "Tereyağı / hindistan cevizi / süt yağı", "fat");
 
   if (has(first, ["süt", "peynir", "yumurta", "jelatin", "meyve", "portakal", "elma",
                   "milk", "cheese", "egg", "gelatin", "fruit", "orange"]))
-    add(1, "Ana içerik süt, yumurta, jelatin veya meyve");
+    add(1, "Ana içerik süt, yumurta, jelatin veya meyve", "base");
 
   if (has(text, ["jelatin", "kolajen", "kollajen", "gelatin", "collagen", "glisin", "glycine"]))
-    add(1, "Jelatin / kolajen (glisin kaynağı)");
+    add(1, "Jelatin / kolajen (glisin kaynağı)", "gel");
 
   if (has(text, ["bal", "honey", "portakal suyu", "orange juice", "keçiboynuzu pekmezi", "pekmez"]))
-    add(1, "Bal, pekmez veya meyve suyu");
+    add(1, "Bal, pekmez veya meyve suyu", "sugarfuel");
 
   return { score: Math.max(0, Math.min(10, score)), reasons };
 }
@@ -345,14 +416,14 @@ function scienceExtras(p, ingredientsRaw) {
     ["maltodekstrin", "maltodextrin", "modifiye nisasta", "modified starch"],
     ["renklendirici", "colour", "e102", "e110", "e122", "e124", "e129", "e150"]
   ].filter(g => has(text, g)).length;
-  if (nova === 4) penalties.push({ pts: -1, label: "Ultra işlenmiş gıda (NOVA 4)" });
-  else if (!nova && markers >= 2) penalties.push({ pts: -1, label: "Ultra işlenmiş görünüyor (tahmini)" });
+  if (nova === 4) penalties.push({ pts: -1, label: "Ultra işlenmiş gıda (NOVA 4)", why: WHY.ultra[0] });
+  else if (!nova && markers >= 2) penalties.push({ pts: -1, label: "Ultra işlenmiş görünüyor (tahmini)", why: WHY.ultra[0] });
 
   if (has(text, ["hidrojene", "hydrogenated", "margarin", "margarine"]))
-    penalties.push({ pts: -3, label: "Hidrojene yağ / trans yağ riski" });
+    penalties.push({ pts: -3, label: "Hidrojene yağ / trans yağ riski", why: WHY.trans[0] });
 
   if (has(text, ["nitrit", "nitrite", "e250", "e251", "e252", "sucuk", "sosis", "pastirma"]))
-    penalties.push({ pts: -2, label: "İşlenmiş et / nitrit (kanser riskiyle ilişkili)" });
+    penalties.push({ pts: -2, label: "İşlenmiş et / nitrit (kanser riskiyle ilişkili)", why: WHY.meat[0] });
 
   // Sadece bilgi
   const level = (v, low, high) => v === null ? null : v > high ? "yüksek" : v > low ? "orta" : "düşük";
@@ -374,7 +445,65 @@ const $ = id => document.getElementById(id);
 
 let scanner = null;
 
+// Okuma alanı (beyaz çerçeve) boyutu: kullanıcı büyütüp küçültebilir
+let framePct = +(localStorage.getItem("framePct") || 70);
+
+function viewFinder(w, h) {
+  const width = Math.round(Math.min(w, h * 1.6) * framePct / 100);
+  return { width, height: Math.round(width * 0.5) };
+}
+
+// Tam ekran kamera kaplaması
+function openScanUI() {
+  document.body.classList.add("scanning");
+  $("scanUI").hidden = false;
+  $("statusSlot").appendChild($("status"));   // durum yazısı kameranın üstünde görünsün
+  let caps = {};
+  try { caps = scanner.getRunningTrackCapabilities() || {}; } catch {}
+  const z = $("scanZoom");
+  if (caps.zoom) {
+    z.min = caps.zoom.min; z.max = caps.zoom.max; z.step = caps.zoom.step || 0.1; z.value = caps.zoom.min;
+    z.oninput = () => scanner && scanner.applyVideoConstraints({ advanced: [{ zoom: +z.value }] }).catch(() => {});
+    $("scanZoomWrap").hidden = false;
+  } else {
+    $("scanZoomWrap").hidden = true;
+  }
+  $("torch").hidden = !caps.torch;
+  $("torch").classList.remove("on");
+  $("frameSize").value = framePct;
+}
+
+function closeScanUI() {
+  document.body.classList.remove("scanning");
+  $("scanUI").hidden = true;
+  const st = $("status");
+  if (st.parentElement === $("statusSlot")) $("scanUI").insertAdjacentElement("afterend", st);
+}
+
+$("scanClose").addEventListener("click", () => stopScanner());
+
+// Çerçeve boyutu değişince tarayıcıyı yeni boyutla yeniden başlat
+$("frameSize").addEventListener("change", async () => {
+  framePct = +$("frameSize").value;
+  try { localStorage.setItem("framePct", framePct); } catch {}
+  if (!scanner) return;
+  await stopScanner();
+  $("scan").click();
+});
+
+$("torch").addEventListener("click", async () => {
+  if (!scanner) return;
+  const on = !$("torch").classList.contains("on");
+  try {
+    await scanner.applyVideoConstraints({ advanced: [{ torch: on }] });
+    $("torch").classList.toggle("on", on);
+  } catch {
+    $("status").textContent = "Bu telefonda ışık açılamıyor.";
+  }
+});
+
 async function stopScanner() {
+  closeScanUI();
   if (scanner) {
     try { await scanner.stop(); } catch {}
     scanner.clear();
@@ -406,7 +535,7 @@ $("scan").addEventListener("click", async () => {
   try {
     await scanner.start(
       { facingMode: "environment" },
-      { fps: 10, qrbox: { width: 260, height: 120 } },
+      { fps: 10, qrbox: viewFinder },
       async text => {
         if (done) return;
         done = true;
@@ -415,6 +544,7 @@ $("scan").addEventListener("click", async () => {
         lookup(text, true); // kamera açık kalsın, içindekiler canlı okunabilsin
       }
     );
+    openScanUI();
     if (!done) $("status").textContent = "Kamerayı ürünün üzerinde gezdir: barkodu ve içindekileri birlikte okuyorum.";
     startLive();
   } catch {
@@ -506,7 +636,7 @@ function showResult(p, ing) {
     nu.style.background = nutriColors[sci.grade] || "var(--line)";
     $("nova").textContent = sci.nova ? "NOVA " + sci.nova + (sci.nova === 4 ? " · ultra işlenmiş" : "") : "İşlenme derecesi bilinmiyor";
     const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-    const sciRows = sci.penalties.map(r => `<li><span>${esc(r.label)}</span><span class="pts minus">${r.pts}</span></li>`)
+    const sciRows = sci.penalties.map(reasonRow)
       .concat(sci.info.map(r => `<li><span>${esc(r.label)}</span><span class="info">${esc(r.badge)}</span></li>`));
     $("sciReasons").innerHTML = sciRows.length ? sciRows.join("")
       : "<li><span>Ek bir risk bulunmadı</span><span class='pts plus'>0</span></li>";
@@ -521,7 +651,7 @@ function showResult(p, ing) {
       src.append(a);
     }
     $("reasons").innerHTML = reasons.length
-      ? reasons.map(r => `<li><span>${r.label}</span><span class="pts ${r.pts < 0 ? "minus" : "plus"}">${r.pts > 0 ? "+" : ""}${r.pts}</span></li>`).join("")
+      ? reasons.map(reasonRow).join("")
       : "<li><span>Sorunlu içerik bulunmadı</span><span class='pts plus'>0</span></li>";
     $("ingredients").textContent = ing;
     $("status").textContent = "";
@@ -531,6 +661,15 @@ function showResult(p, ing) {
 }
 
 // Puanı sunucuya bildir: herkesin taraması ortak alternatif listesini besler
+// Gerekçesi olan satır dokununca açılır
+function reasonRow(r) {
+  const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const pts = `<span class="pts ${r.pts < 0 ? "minus" : "plus"}">${r.pts > 0 ? "+" : ""}${r.pts}</span>`;
+  if (!r.why) return `<li><span>${esc(r.label)}</span>${pts}</li>`;
+  const link = r.url ? ` <a href="${esc(r.url)}" target="_blank" rel="noopener">Yazının tamamı</a>` : "";
+  return `<li><details><summary>${esc(r.label)}</summary><p>${esc(r.why)}${link}</p></details>${pts}</li>`;
+}
+
 function reportScore(code, score) {
   if (!WORKER_URL || !code) return;
   fetch(WORKER_URL + "/score", {
@@ -961,4 +1100,4 @@ if ("serviceWorker" in navigator) {
 if (window.caches) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
 </script>
 </body>
-</html>
+  </html>
