@@ -184,6 +184,17 @@
   .suggestList li { background: white; padding: 12px; border-radius: 12px; margin: 8px 0; border: 1px solid #DCE6DC; }
   .suggestList button { width: auto; padding: 7px 11px; margin-top: 6px; font-size: .85rem; }
   .suggestList small { display: block; color: var(--muted); }
+  .shelf { margin: 24px 0; padding: 20px; background: #EFE8D9; border: 1px solid #D6C7A9; border-radius: 20px; }
+  .shelf h2 { margin: 0 0 6px; }
+  .shelf > p { margin: 0 0 14px; color: var(--muted); }
+  .shelfGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 12px; padding: 18px 6px 28px; background: repeating-linear-gradient(to bottom, transparent 0, transparent 173px, #A67C4E 174px, #795633 182px, transparent 186px, transparent 205px); }
+  .shelfItem { min-height: 154px; background: #fff; border: 1px solid #D6C7A9; border-radius: 12px; padding: 8px; text-align: center; }
+  .shelf .shelfOpen { background: transparent; color: #14201A; border: 0; padding: 0; width: 100%; }
+  .shelfOpen img, .shelfPlaceholder { display: block; width: 100%; height: 83px; object-fit: contain; margin-bottom: 5px; }
+  .shelfPlaceholder { padding-top: 18px; font-size: 2rem; }
+  .shelfOpen strong { display: block; font-size: .85rem; overflow-wrap: anywhere; }
+  .shelfOpen small { display: block; font-size: .8rem; }
+  .shelfRemove { font-size: .75rem; background: transparent; color: #794B3B; border: 0; margin-top: 5px; }
   .note { margin-top: 30px; font-size: 0.83rem; color: var(--muted); }
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
@@ -246,6 +257,12 @@
     <button id="suggestBtn" type="button">Seçenekleri göster</button>
     <p id="suggestStatus" role="status"></p>
     <ul id="suggestList" class="suggestList"></ul>
+  </section>
+
+  <section class="shelf" aria-labelledby="shelfTitle">
+    <h2 id="shelfTitle">Rafım</h2>
+    <p>Okuttuğun ürünler bu cihazda saklanır. Puanlar tarandıkları andaki sonuçlardır.</p>
+    <div id="shelfGrid" class="shelfGrid"></div>
   </section>
 
   <section id="ocr">
@@ -936,9 +953,63 @@ function showResult(p, ing) {
   $("ingredients").textContent = ing;
   $("status").textContent = "";
   $("result").style.display = "block";
+  saveToShelf(p, total);
   reportScore(p.code, total);
   loadAlternatives(p.code, total);
 }
+
+const SHELF_KEY = "etiket-puani-raf-v1";
+function shelfEntries() {
+  try {
+    const entries = JSON.parse(localStorage.getItem(SHELF_KEY) || "[]");
+    return Array.isArray(entries) ? entries.filter(x => /^\d{8,14}$/.test(x.code)).slice(0, 60) : [];
+  } catch { return []; }
+}
+function saveToShelf(p, score) {
+  const code = String(p.code || "");
+  if (!/^\d{8,14}$/.test(code)) return;
+  const old = shelfEntries();
+  const prior = old.find(x => x.code === code);
+  const item = { code, name: String(p.product_name_tr || p.product_name || "İsimsiz ürün").slice(0, 120),
+    brand: String(p.brands || "").slice(0, 80), score, image: prior?.image || "", scannedAt: Date.now() };
+  try { localStorage.setItem(SHELF_KEY, JSON.stringify([item, ...old.filter(x => x.code !== code)].slice(0, 60))); }
+  catch { return; }
+  renderShelf();
+  // Fotoğraf yalnızca Open Food Facts kaydında varsa alınır.
+  fetch("https://world.openfoodfacts.org/api/v2/product/" + code + ".json?fields=image_front_small_url,image_small_url", { signal: AbortSignal.timeout(7000) })
+    .then(r => r.ok ? r.json() : null).then(d => {
+      const image = d?.product?.image_front_small_url || d?.product?.image_small_url;
+      if (typeof image !== "string" || !/^https:\/\/images\.openfoodfacts\.org\//.test(image)) return;
+      const list = shelfEntries(), current = list.find(x => x.code === code);
+      if (!current) return;
+      current.image = image;
+      localStorage.setItem(SHELF_KEY, JSON.stringify(list));
+      renderShelf();
+    }).catch(() => {});
+}
+function renderShelf() {
+  const box = $("shelfGrid");
+  box.replaceChildren();
+  const entries = shelfEntries();
+  if (!entries.length) { box.textContent = "Henüz ürün yok. Barkod okuttuğunda burada görünecek."; return; }
+  for (const item of entries) {
+    const card = document.createElement("div"); card.className = "shelfItem";
+    const open = document.createElement("button"); open.type = "button"; open.className = "shelfOpen";
+    if (item.image && /^https:\/\/images\.openfoodfacts\.org\//.test(item.image)) {
+      const img = document.createElement("img"); img.src = item.image; img.alt = ""; img.loading = "lazy"; open.append(img);
+    } else {
+      const placeholder = document.createElement("span"); placeholder.className = "shelfPlaceholder"; placeholder.textContent = "🥫"; open.append(placeholder);
+    }
+    const title = document.createElement("strong"); title.textContent = item.name;
+    const score = document.createElement("small"); score.textContent = item.score + "/10 · " + item.brand;
+    open.append(title, score);
+    open.addEventListener("click", async () => { $("code").value = item.code; await lookup(item.code); $("result").scrollIntoView({ behavior: "smooth" }); });
+    const remove = document.createElement("button"); remove.type = "button"; remove.className = "shelfRemove"; remove.textContent = "Raftan çıkar";
+    remove.addEventListener("click", () => { try { localStorage.setItem(SHELF_KEY, JSON.stringify(shelfEntries().filter(x => x.code !== item.code))); } catch {} renderShelf(); });
+    card.append(open, remove); box.append(card);
+  }
+}
+renderShelf();
 
 function reasonRow(r) {
   const esc = t => String(t || "").replace(/[&<>"]/g, c => ({
